@@ -1,6 +1,11 @@
 
 using DAL.Data;
+using DAL.Repositories;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
+using BLL.Services;
 
 namespace FinmateController
 {
@@ -20,9 +25,38 @@ namespace FinmateController
             // HttpClient
             builder.Services.AddHttpClient();
 
+            // Register ClerkService với HttpClient riêng
+            builder.Services.AddHttpClient<ClerkService>();
+
+            // Cấu hình JWT Authentication với Clerk
+            var clerkInstanceUrl = builder.Configuration["Clerk:InstanceUrl"] ?? throw new InvalidOperationException("Clerk:InstanceUrl is not configured");
+            var metadataAddress = $"{clerkInstanceUrl}/.well-known/openid-configuration";
+
+            builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+                .AddJwtBearer(options =>
+                {
+                    options.MetadataAddress = metadataAddress;
+                    options.TokenValidationParameters = new TokenValidationParameters
+                    {
+                        ValidateIssuer = true,
+                        ValidIssuer = clerkInstanceUrl,
+                        ValidateAudience = false, // Clerk tokens không có audience
+                        ValidateLifetime = true,
+                        ValidateIssuerSigningKey = true
+                    };
+                });
+
+            builder.Services.AddAuthorization();
+
             // Cấu hình DbContext
             builder.Services.AddDbContext<FinmateContext>(options =>
                 options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+            // Đăng ký Repository
+            builder.Services.AddScoped<IUserRepository, UserRepository>();
+
+            // Đăng ký Services
+            builder.Services.AddScoped<UserService>();
 
             var app = builder.Build();
 
@@ -38,8 +72,8 @@ namespace FinmateController
 
             app.UseHttpsRedirection();
 
+            app.UseAuthentication();
             app.UseAuthorization();
-
 
             app.MapControllers();
 

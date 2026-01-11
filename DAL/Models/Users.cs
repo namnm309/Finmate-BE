@@ -11,6 +11,8 @@ namespace DAL.Models
     [Table("tbl_users")]
     public class Users : BaseEntity
     {       
+        [MaxLength(255)]
+        public string? ClerkUserId { get; set; }
 
         [Required]
         [MaxLength(255)]
