@@ -1,8 +1,7 @@
-
 using DAL.Data;
 using DAL.Repositories;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using BLL.Services;
@@ -15,21 +14,24 @@ namespace FinmateController
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            // Add services to the container.
+            // =======================
+            // Add services
+            // =======================
 
             builder.Services.AddControllers();
-            // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+
+            // Swagger
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
 
             // HttpClient
             builder.Services.AddHttpClient();
-
-            // Register ClerkService với HttpClient riêng
             builder.Services.AddHttpClient<ClerkService>();
 
-            // Cấu hình JWT Authentication với Clerk
-            var clerkInstanceUrl = builder.Configuration["Clerk:InstanceUrl"] ?? throw new InvalidOperationException("Clerk:InstanceUrl is not configured");
+            // JWT Authentication (Clerk)
+            var clerkInstanceUrl = builder.Configuration["Clerk:InstanceUrl"]
+                ?? throw new InvalidOperationException("Clerk:InstanceUrl is not configured");
+
             var metadataAddress = $"{clerkInstanceUrl}/.well-known/openid-configuration";
 
             builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -40,7 +42,7 @@ namespace FinmateController
                     {
                         ValidateIssuer = true,
                         ValidIssuer = clerkInstanceUrl,
-                        ValidateAudience = false, // Clerk tokens không có audience
+                        ValidateAudience = false,
                         ValidateLifetime = true,
                         ValidateIssuerSigningKey = true,
                         NameClaimType = "sub"
@@ -49,26 +51,27 @@ namespace FinmateController
 
             builder.Services.AddAuthorization();
 
-            // Cấu hình DbContext
+            // Database
             builder.Services.AddDbContext<FinmateContext>(options =>
                 options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-            // Đăng ký Repository
+            // Repositories
             builder.Services.AddScoped<IUserRepository, UserRepository>();
 
-            // Đăng ký Services
+            // Services
             builder.Services.AddScoped<UserService>();
 
             var app = builder.Build();
 
-            // Configure the HTTP request pipeline.
-            if (app.Environment.IsDevelopment())
-            {
-                app.UseSwagger();
-                app.UseSwaggerUI();
-            }
+            // =======================
+            // Middleware pipeline
+            // =======================
 
-            // Auto apply EF Core migrations at startup
+            // 👉 LUÔN bật Swagger (kể cả Azure)
+            app.UseSwagger();
+            app.UseSwaggerUI();
+
+            // Auto apply migrations
             ApplyPendingMigrations(app);
 
             app.UseHttpsRedirection();
@@ -81,7 +84,9 @@ namespace FinmateController
             app.Run();
         }
 
-        //Automatic migration
+        // =======================
+        // Auto migrate database
+        // =======================
         private static void ApplyPendingMigrations(WebApplication app)
         {
             using var scope = app.Services.CreateScope();
