@@ -42,7 +42,8 @@ namespace FinmateController
                         ValidIssuer = clerkInstanceUrl,
                         ValidateAudience = false, // Clerk tokens không có audience
                         ValidateLifetime = true,
-                        ValidateIssuerSigningKey = true
+                        ValidateIssuerSigningKey = true,
+                        NameClaimType = "sub"
                     };
                 });
 

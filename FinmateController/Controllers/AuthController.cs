@@ -61,6 +61,39 @@ namespace FinmateController.Controllers
         }
 
         /// <summary>
+        /// Sync user từ Clerk vào database sau khi login
+        /// </summary>
+        [HttpPost("sync")]
+        [Authorize]
+        public async Task<IActionResult> SyncUser()
+        {
+            try
+            {
+                // Lấy Clerk user ID từ claims
+                var clerkUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                    ?? User.FindFirst("sub")?.Value;
+
+                if (string.IsNullOrEmpty(clerkUserId))
+                {
+                    return Unauthorized("Invalid token");
+                }
+
+                var userDto = await _userService.GetOrCreateUserFromClerkAsync(clerkUserId);
+                if (userDto == null)
+                {
+                    return NotFound("User not found");
+                }
+
+                return Ok(userDto);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error syncing user");
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+        /// <summary>
         /// Verify token và lấy thông tin từ Clerk (không cần database)
         /// </summary>
         [HttpPost("verify")]
