@@ -3,7 +3,6 @@ using DAL.Repositories;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using System.Text;
 using BLL.Services;
 
 namespace FinmateController
@@ -70,6 +69,13 @@ namespace FinmateController
             // 👉 LUÔN bật Swagger (kể cả Azure)
             app.UseSwagger();
             app.UseSwaggerUI();
+
+            // 🔥 FIX PUBLISH AZURE: redirect root & index.html → Swagger
+            app.MapGet("/", () => Results.Redirect("/swagger"))
+               .ExcludeFromDescription();
+
+            app.MapGet("/index.html", () => Results.Redirect("/swagger"))
+               .ExcludeFromDescription();
 
             // Auto apply migrations
             ApplyPendingMigrations(app);
