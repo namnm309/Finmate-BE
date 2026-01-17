@@ -1,8 +1,9 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text;
+using System.Collections.Generic;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Http;
 
 namespace BLL.Services
 {
@@ -12,10 +13,17 @@ namespace BLL.Services
         private readonly string _secretKey;
         private readonly string _webhookSecret;
         private readonly IConfiguration _configuration;
-
-        public ClerkService(IHttpClientFactory httpClientFactory, IConfiguration configuration)
+        private static readonly JsonSerializerOptions _jsonOptions = new JsonSerializerOptions
         {
-            _httpClient = httpClientFactory.CreateClient();
+            PropertyNameCaseInsensitive = true,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+            NumberHandling = JsonNumberHandling.AllowReadingFromString
+        };
+
+        // Constructor cho Typed HttpClient pattern (dùng với AddHttpClient<ClerkService>())
+        public ClerkService(HttpClient httpClient, IConfiguration configuration)
+        {
+            _httpClient = httpClient;
             _configuration = configuration;
             _secretKey = configuration["Clerk:SecretKey"] ?? throw new InvalidOperationException("Clerk:SecretKey is not configured");
             _webhookSecret = configuration["Clerk:WebhookSecret"] ?? throw new InvalidOperationException("Clerk:WebhookSecret is not configured");
@@ -141,60 +149,303 @@ namespace BLL.Services
         {
             try
             {
-                return JsonSerializer.Deserialize<ClerkWebhookEvent>(jsonPayload, new JsonSerializerOptions
+                if (string.IsNullOrWhiteSpace(jsonPayload))
                 {
-                    PropertyNameCaseInsensitive = true
-                });
+                    throw new ArgumentException("JSON payload is null or empty");
+                }
+
+                var result = JsonSerializer.Deserialize<ClerkWebhookEvent>(jsonPayload, _jsonOptions);
+                
+                if (result == null)
+                {
+                    throw new InvalidOperationException("Deserialized result is null");
+                }
+
+                return result;
             }
-            catch
+            catch (JsonException ex)
             {
-                return null;
+                // Throw exception với message chi tiết để controller có thể log
+                throw new InvalidOperationException(
+                    $"JSON Parse Error: {ex.Message}. Path: {ex.Path}, LineNumber: {ex.LineNumber}, BytePositionInLine: {ex.BytePositionInLine}. " +
+                    $"Payload preview: {(jsonPayload.Length > 200 ? jsonPayload.Substring(0, 200) + "..." : jsonPayload)}", 
+                    ex);
             }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException(
+                    $"Parse Error: {ex.Message}. Payload preview: {(jsonPayload?.Length > 200 ? jsonPayload.Substring(0, 200) + "..." : jsonPayload ?? "null")}", 
+                    ex);
+            }
+        }
+
+        /// <summary>
+        /// Convert Unix timestamp (milliseconds) to DateTime
+        /// </summary>
+        public static DateTime? ConvertFromUnixTimestamp(long? timestamp)
+        {
+            if (timestamp == null || timestamp == 0)
+                return null;
+            
+            return DateTimeOffset.FromUnixTimeMilliseconds(timestamp.Value).UtcDateTime;
         }
     }
 
     // DTOs cho Clerk API responses
     public class ClerkUserInfo
     {
+        [JsonPropertyName("id")]
         public string? Id { get; set; }
+        
+        [JsonPropertyName("first_name")]
         public string? FirstName { get; set; }
+        
+        [JsonPropertyName("last_name")]
         public string? LastName { get; set; }
+        
+        [JsonPropertyName("email_address")]
         public string? EmailAddress { get; set; }
+        
+        [JsonPropertyName("phone_number")]
         public string? PhoneNumber { get; set; }
+        
+        [JsonPropertyName("image_url")]
         public string? ImageUrl { get; set; }
-        public DateTime? CreatedAt { get; set; }
-        public DateTime? UpdatedAt { get; set; }
-        public DateTime? LastSignInAt { get; set; }
+        
+        [JsonPropertyName("created_at")]
+        public long? CreatedAt { get; set; }
+        
+        [JsonPropertyName("updated_at")]
+        public long? UpdatedAt { get; set; }
+        
+        [JsonPropertyName("last_sign_in_at")]
+        public long? LastSignInAt { get; set; }
+        
+        // Helper methods để convert timestamp
+        public DateTime? GetCreatedAtDateTime() => ClerkService.ConvertFromUnixTimestamp(CreatedAt);
+        public DateTime? GetUpdatedAtDateTime() => ClerkService.ConvertFromUnixTimestamp(UpdatedAt);
+        public DateTime? GetLastSignInAtDateTime() => ClerkService.ConvertFromUnixTimestamp(LastSignInAt);
     }
 
     public class ClerkWebhookEvent
     {
+        [JsonPropertyName("type")]
         public string? Type { get; set; }
+        
+        [JsonPropertyName("data")]
         public ClerkWebhookData? Data { get; set; }
     }
 
     public class ClerkWebhookData
     {
+        [JsonPropertyName("id")]
         public string? Id { get; set; }
+        
+        [JsonPropertyName("first_name")]
         public string? FirstName { get; set; }
+        
+        [JsonPropertyName("last_name")]
         public string? LastName { get; set; }
+        
+        [JsonPropertyName("email_addresses")]
         public List<ClerkEmailAddress>? EmailAddresses { get; set; }
+        
+        [JsonPropertyName("phone_numbers")]
         public List<ClerkPhoneNumber>? PhoneNumbers { get; set; }
+        
+        [JsonPropertyName("image_url")]
         public string? ImageUrl { get; set; }
-        public DateTime? CreatedAt { get; set; }
-        public DateTime? UpdatedAt { get; set; }
-        public DateTime? LastSignInAt { get; set; }
+        
+        [JsonPropertyName("created_at")]
+        public long? CreatedAt { get; set; }
+        
+        [JsonPropertyName("updated_at")]
+        public long? UpdatedAt { get; set; }
+        
+        [JsonPropertyName("last_sign_in_at")]
+        public long? LastSignInAt { get; set; }
+        
+        // Hỗ trợ cho session.created event
+        [JsonPropertyName("user_id")]
+        public string? UserId { get; set; }
+        
+        [JsonPropertyName("user")]
+        public ClerkWebhookData? User { get; set; }
+        
+        // Các field khác từ Clerk (có thể null, không bắt buộc)
+        [JsonPropertyName("backup_code_enabled")]
+        public bool? BackupCodeEnabled { get; set; }
+        
+        [JsonPropertyName("banned")]
+        public bool? Banned { get; set; }
+        
+        [JsonPropertyName("bypass_client_trust")]
+        public bool? BypassClientTrust { get; set; }
+        
+        [JsonPropertyName("create_organization_enabled")]
+        public bool? CreateOrganizationEnabled { get; set; }
+        
+        [JsonPropertyName("delete_self_enabled")]
+        public bool? DeleteSelfEnabled { get; set; }
+        
+        [JsonPropertyName("enterprise_accounts")]
+        public List<object>? EnterpriseAccounts { get; set; }
+        
+        [JsonPropertyName("external_accounts")]
+        public List<object>? ExternalAccounts { get; set; }
+        
+        [JsonPropertyName("external_id")]
+        public string? ExternalId { get; set; }
+        
+        [JsonPropertyName("has_image")]
+        public bool? HasImage { get; set; }
+        
+        [JsonPropertyName("last_active_at")]
+        public long? LastActiveAt { get; set; }
+        
+        [JsonPropertyName("legal_accepted_at")]
+        public long? LegalAcceptedAt { get; set; }
+        
+        [JsonPropertyName("locale")]
+        public string? Locale { get; set; }
+        
+        [JsonPropertyName("locked")]
+        public bool? Locked { get; set; }
+        
+        [JsonPropertyName("lockout_expires_in_seconds")]
+        public long? LockoutExpiresInSeconds { get; set; }
+        
+        [JsonPropertyName("mfa_disabled_at")]
+        public long? MfaDisabledAt { get; set; }
+        
+        [JsonPropertyName("mfa_enabled_at")]
+        public long? MfaEnabledAt { get; set; }
+        
+        [JsonPropertyName("object")]
+        public string? Object { get; set; }
+        
+        [JsonPropertyName("passkeys")]
+        public List<object>? Passkeys { get; set; }
+        
+        [JsonPropertyName("password_enabled")]
+        public bool? PasswordEnabled { get; set; }
+        
+        [JsonPropertyName("password_last_updated_at")]
+        public long? PasswordLastUpdatedAt { get; set; }
+        
+        [JsonPropertyName("primary_email_address_id")]
+        public string? PrimaryEmailAddressId { get; set; }
+        
+        [JsonPropertyName("primary_phone_number_id")]
+        public string? PrimaryPhoneNumberId { get; set; }
+        
+        [JsonPropertyName("primary_web3_wallet_id")]
+        public string? PrimaryWeb3WalletId { get; set; }
+        
+        [JsonPropertyName("private_metadata")]
+        public Dictionary<string, object>? PrivateMetadata { get; set; }
+        
+        [JsonPropertyName("profile_image_url")]
+        public string? ProfileImageUrl { get; set; }
+        
+        [JsonPropertyName("public_metadata")]
+        public Dictionary<string, object>? PublicMetadata { get; set; }
+        
+        [JsonPropertyName("requires_password_reset")]
+        public bool? RequiresPasswordReset { get; set; }
+        
+        [JsonPropertyName("saml_accounts")]
+        public List<object>? SamlAccounts { get; set; }
+        
+        [JsonPropertyName("totp_enabled")]
+        public bool? TotpEnabled { get; set; }
+        
+        [JsonPropertyName("two_factor_enabled")]
+        public bool? TwoFactorEnabled { get; set; }
+        
+        [JsonPropertyName("unsafe_metadata")]
+        public Dictionary<string, object>? UnsafeMetadata { get; set; }
+        
+        [JsonPropertyName("username")]
+        public string? Username { get; set; }
+        
+        [JsonPropertyName("verification_attempts_remaining")]
+        public int? VerificationAttemptsRemaining { get; set; }
+        
+        [JsonPropertyName("web3_wallets")]
+        public List<object>? Web3Wallets { get; set; }
+        
+        // Helper methods để convert timestamp
+        public DateTime? GetCreatedAtDateTime() => ClerkService.ConvertFromUnixTimestamp(CreatedAt);
+        public DateTime? GetUpdatedAtDateTime() => ClerkService.ConvertFromUnixTimestamp(UpdatedAt);
+        public DateTime? GetLastSignInAtDateTime() => ClerkService.ConvertFromUnixTimestamp(LastSignInAt);
     }
 
     public class ClerkEmailAddress
     {
+        [JsonPropertyName("id")]
+        public string? Id { get; set; }
+        
+        [JsonPropertyName("email_address")]
         public string? EmailAddress { get; set; }
-        public bool? Verified { get; set; }
+        
+        [JsonPropertyName("verification")]
+        public ClerkVerification? Verification { get; set; }
+        
+        // Các field khác từ Clerk (có thể null, không bắt buộc)
+        [JsonPropertyName("created_at")]
+        public long? CreatedAt { get; set; }
+        
+        [JsonPropertyName("updated_at")]
+        public long? UpdatedAt { get; set; }
+        
+        [JsonPropertyName("linked_to")]
+        public List<object>? LinkedTo { get; set; }
+        
+        [JsonPropertyName("matches_sso_connection")]
+        public bool? MatchesSsoConnection { get; set; }
+        
+        [JsonPropertyName("object")]
+        public string? Object { get; set; }
+        
+        [JsonPropertyName("reserved")]
+        public bool? Reserved { get; set; }
+        
+        // Helper để check verified
+        public bool IsVerified => Verification?.Status == "verified";
+    }
+
+    public class ClerkVerification
+    {
+        [JsonPropertyName("status")]
+        public string? Status { get; set; }
+        
+        [JsonPropertyName("strategy")]
+        public string? Strategy { get; set; }
+        
+        // Các field khác từ Clerk (có thể null, không bắt buộc)
+        [JsonPropertyName("attempts")]
+        public int? Attempts { get; set; }
+        
+        [JsonPropertyName("expire_at")]
+        public long? ExpireAt { get; set; }
+        
+        [JsonPropertyName("object")]
+        public string? Object { get; set; }
     }
 
     public class ClerkPhoneNumber
     {
+        [JsonPropertyName("id")]
+        public string? Id { get; set; }
+        
+        [JsonPropertyName("phone_number")]
         public string? PhoneNumber { get; set; }
-        public bool? Verified { get; set; }
+        
+        [JsonPropertyName("verification")]
+        public ClerkVerification? Verification { get; set; }
+        
+        // Helper để check verified
+        public bool IsVerified => Verification?.Status == "verified";
     }
 }

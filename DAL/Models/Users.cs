@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
@@ -32,6 +32,12 @@ namespace DAL.Models
 
         [MaxLength(500)]
         public string AvatarUrl { get; set; }
+
+        [MaxLength(500)]
+        public string? Address { get; set; }
+
+        [MaxLength(255)]
+        public string? Occupation { get; set; }
 
         public DateTime? DateOfBirth { get; set; }
 
