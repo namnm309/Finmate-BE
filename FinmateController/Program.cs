@@ -63,9 +63,21 @@ namespace FinmateController
 
             // Đăng ký Repository
             builder.Services.AddScoped<IUserRepository, UserRepository>();
+            builder.Services.AddScoped<IAccountTypeRepository, AccountTypeRepository>();
+            builder.Services.AddScoped<ITransactionTypeRepository, TransactionTypeRepository>();
+            builder.Services.AddScoped<IMoneySourceRepository, MoneySourceRepository>();
+            builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
+            builder.Services.AddScoped<IContactRepository, ContactRepository>();
+            builder.Services.AddScoped<ITransactionRepository, TransactionRepository>();
 
             // Đăng ký Services
             builder.Services.AddScoped<UserService>();
+            builder.Services.AddScoped<AccountTypeService>();
+            builder.Services.AddScoped<TransactionTypeService>();
+            builder.Services.AddScoped<MoneySourceService>();
+            builder.Services.AddScoped<CategoryService>();
+            builder.Services.AddScoped<ContactService>();
+            builder.Services.AddScoped<TransactionService>();
 
             var app = builder.Build();
 

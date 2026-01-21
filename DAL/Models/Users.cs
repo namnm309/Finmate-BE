@@ -49,5 +49,11 @@ namespace DAL.Models
 
         public bool IsActive { get; set; } = true;
         public bool IsPremium { get; set; } = false;
+
+        // Navigation properties
+        public virtual ICollection<MoneySource> MoneySources { get; set; } = new List<MoneySource>();
+        public virtual ICollection<Category> Categories { get; set; } = new List<Category>();
+        public virtual ICollection<Contact> Contacts { get; set; } = new List<Contact>();
+        public virtual ICollection<Transaction> Transactions { get; set; } = new List<Transaction>();
     }
 }
