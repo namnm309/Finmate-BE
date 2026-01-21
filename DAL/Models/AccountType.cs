@@ -22,7 +22,7 @@ namespace DAL.Models
 
         public int DisplayOrder { get; set; }
 
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; }
 
         // Navigation property
         public virtual ICollection<MoneySource> MoneySources { get; set; } = new List<MoneySource>();

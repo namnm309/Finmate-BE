@@ -31,7 +31,7 @@ namespace DAL.Models
 
         public int DisplayOrder { get; set; }
 
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; }
 
         // Navigation properties
         public virtual ICollection<Category> Categories { get; set; } = new List<Category>();

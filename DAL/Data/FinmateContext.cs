@@ -119,22 +119,92 @@ namespace DAL.Data
                     .HasPrecision(18, 2);
             });
 
+            var seedTimestamp = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
             // Seed data cho AccountType
             modelBuilder.Entity<AccountType>().HasData(
-                new AccountType { Id = Guid.Parse("11111111-1111-1111-1111-111111111001"), Name = "Tiền mặt", DisplayOrder = 1 },
-                new AccountType { Id = Guid.Parse("11111111-1111-1111-1111-111111111002"), Name = "Tài khoản ngân hàng", DisplayOrder = 2 },
-                new AccountType { Id = Guid.Parse("11111111-1111-1111-1111-111111111003"), Name = "Thẻ tín dụng", DisplayOrder = 3 },
-                new AccountType { Id = Guid.Parse("11111111-1111-1111-1111-111111111004"), Name = "Tài khoản đầu tư", DisplayOrder = 4 },
-                new AccountType { Id = Guid.Parse("11111111-1111-1111-1111-111111111005"), Name = "Ví điện tử", DisplayOrder = 5 },
-                new AccountType { Id = Guid.Parse("11111111-1111-1111-1111-111111111006"), Name = "Khác", DisplayOrder = 6 }
+                new AccountType
+                {
+                    Id = Guid.Parse("11111111-1111-1111-1111-111111111001"),
+                    Name = "Tiền mặt",
+                    DisplayOrder = 1,
+                    CreatedAt = seedTimestamp
+                },
+                new AccountType
+                {
+                    Id = Guid.Parse("11111111-1111-1111-1111-111111111002"),
+                    Name = "Tài khoản ngân hàng",
+                    DisplayOrder = 2,
+                    CreatedAt = seedTimestamp
+                },
+                new AccountType
+                {
+                    Id = Guid.Parse("11111111-1111-1111-1111-111111111003"),
+                    Name = "Thẻ tín dụng",
+                    DisplayOrder = 3,
+                    CreatedAt = seedTimestamp
+                },
+                new AccountType
+                {
+                    Id = Guid.Parse("11111111-1111-1111-1111-111111111004"),
+                    Name = "Tài khoản đầu tư",
+                    DisplayOrder = 4,
+                    CreatedAt = seedTimestamp
+                },
+                new AccountType
+                {
+                    Id = Guid.Parse("11111111-1111-1111-1111-111111111005"),
+                    Name = "Ví điện tử",
+                    DisplayOrder = 5,
+                    CreatedAt = seedTimestamp
+                },
+                new AccountType
+                {
+                    Id = Guid.Parse("11111111-1111-1111-1111-111111111006"),
+                    Name = "Khác",
+                    DisplayOrder = 6,
+                    CreatedAt = seedTimestamp
+                }
             );
 
             // Seed data cho TransactionType
             modelBuilder.Entity<TransactionType>().HasData(
-                new TransactionType { Id = Guid.Parse("22222222-2222-2222-2222-222222222001"), Name = "Chi tiêu", Color = "#F87171", IsIncome = false, DisplayOrder = 1 },
-                new TransactionType { Id = Guid.Parse("22222222-2222-2222-2222-222222222002"), Name = "Thu tiền", Color = "#34D399", IsIncome = true, DisplayOrder = 2 },
-                new TransactionType { Id = Guid.Parse("22222222-2222-2222-2222-222222222003"), Name = "Cho vay", Color = "#FBBF24", IsIncome = false, DisplayOrder = 3 },
-                new TransactionType { Id = Guid.Parse("22222222-2222-2222-2222-222222222004"), Name = "Đi vay", Color = "#A78BFA", IsIncome = true, DisplayOrder = 4 }
+                new TransactionType
+                {
+                    Id = Guid.Parse("22222222-2222-2222-2222-222222222001"),
+                    Name = "Chi tiêu",
+                    Color = "#F87171",
+                    IsIncome = false,
+                    DisplayOrder = 1,
+                    CreatedAt = seedTimestamp
+                },
+                new TransactionType
+                {
+                    Id = Guid.Parse("22222222-2222-2222-2222-222222222002"),
+                    Name = "Thu tiền",
+                    Color = "#34D399",
+                    IsIncome = true,
+                    DisplayOrder = 2,
+                    CreatedAt = seedTimestamp
+                },
+                new TransactionType
+                {
+                    Id = Guid.Parse("22222222-2222-2222-2222-222222222003"),
+                    Name = "Cho vay",
+                    Color = "#FBBF24",
+                    IsIncome = false,
+                    DisplayOrder = 3,
+                    CreatedAt = seedTimestamp
+                },
+                new TransactionType
+                {
+                    Id = Guid.Parse("22222222-2222-2222-2222-222222222004"),
+                    Name = "Đi vay",
+                    Color = "#A78BFA",
+                    IsIncome = true,
+                    DisplayOrder = 4,
+                    CreatedAt = seedTimestamp
+                }
             );
         }
 
