@@ -80,6 +80,7 @@ namespace FinmateController
             builder.Services.AddScoped<ContactService>();
             builder.Services.AddScoped<TransactionService>();
             builder.Services.AddScoped<CurrencyService>();
+            builder.Services.AddScoped<ReportService>();
 
             var app = builder.Build();
 
