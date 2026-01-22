@@ -64,6 +64,42 @@ namespace FinmateController.Controllers
         }
 
         /// <summary>
+        /// Lấy danh sách icon MaterialIcons phổ biến cho nguồn tiền
+        /// </summary>
+        [HttpGet("icons")]
+        public IActionResult GetIcons()
+        {
+            var icons = new List<object>
+            {
+                new { name = "account-balance-wallet", label = "Ví" },
+                new { name = "account-balance", label = "Ngân hàng" },
+                new { name = "credit-card", label = "Thẻ tín dụng" },
+                new { name = "savings", label = "Tiết kiệm" },
+                new { name = "wallet", label = "Ví tiền" },
+                new { name = "payments", label = "Thanh toán" },
+                new { name = "monetization-on", label = "Tiền" },
+                new { name = "attach-money", label = "Đô la" },
+                new { name = "euro", label = "Euro" },
+                new { name = "currency-bitcoin", label = "Bitcoin" },
+                new { name = "currency-yen", label = "Yên" },
+                new { name = "currency-pound", label = "Bảng Anh" },
+                new { name = "shopping-bag", label = "Mua sắm" },
+                new { name = "store", label = "Cửa hàng" },
+                new { name = "business", label = "Kinh doanh" },
+                new { name = "work", label = "Công việc" },
+                new { name = "trending-up", label = "Đầu tư tăng" },
+                new { name = "show-chart", label = "Biểu đồ" },
+                new { name = "pie-chart", label = "Biểu đồ tròn" },
+                new { name = "money", label = "Tiền mặt" },
+                new { name = "local-atm", label = "ATM" },
+                new { name = "receipt", label = "Hóa đơn" },
+                new { name = "redeem", label = "Quà tặng" },
+                new { name = "card-giftcard", label = "Thẻ quà tặng" }
+            };
+            return Ok(icons);
+        }
+
+        /// <summary>
         /// Lấy danh sách nguồn tiền đã group theo AccountType (cho màn Account)
         /// </summary>
         [HttpGet("grouped")]

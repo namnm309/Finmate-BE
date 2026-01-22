@@ -69,6 +69,7 @@ namespace FinmateController
             builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
             builder.Services.AddScoped<IContactRepository, ContactRepository>();
             builder.Services.AddScoped<ITransactionRepository, TransactionRepository>();
+            builder.Services.AddScoped<ICurrencyRepository, CurrencyRepository>();
 
             // Đăng ký Services
             builder.Services.AddScoped<UserService>();
@@ -78,6 +79,7 @@ namespace FinmateController
             builder.Services.AddScoped<CategoryService>();
             builder.Services.AddScoped<ContactService>();
             builder.Services.AddScoped<TransactionService>();
+            builder.Services.AddScoped<CurrencyService>();
 
             var app = builder.Build();
 

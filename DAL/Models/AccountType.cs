@@ -20,6 +20,18 @@ namespace DAL.Models
         [MaxLength(50)]
         public string Name { get; set; } = string.Empty;
 
+        /// <summary>
+        /// Icon MaterialIcons name (account-balance-wallet, account-balance, credit-card...)
+        /// </summary>
+        [MaxLength(50)]
+        public string Icon { get; set; } = "account-balance-wallet";
+
+        /// <summary>
+        /// Màu hiển thị (hex color)
+        /// </summary>
+        [MaxLength(20)]
+        public string Color { get; set; } = "#51A2FF";
+
         public int DisplayOrder { get; set; }
 
         public DateTime CreatedAt { get; set; }

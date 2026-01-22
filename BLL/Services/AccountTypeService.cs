@@ -34,6 +34,8 @@ namespace BLL.Services
             {
                 Id = entity.Id,
                 Name = entity.Name,
+                Icon = entity.Icon,
+                Color = entity.Color,
                 DisplayOrder = entity.DisplayOrder
             };
         }

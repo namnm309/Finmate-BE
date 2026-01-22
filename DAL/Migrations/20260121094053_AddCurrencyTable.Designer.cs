@@ -3,6 +3,7 @@ using System;
 using DAL.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DAL.Migrations
 {
     [DbContext(typeof(FinmateContext))]
-    partial class FinmateContextModelSnapshot : ModelSnapshot
+    [Migration("20260121094053_AddCurrencyTable")]
+    partial class AddCurrencyTable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -28,21 +31,11 @@ namespace DAL.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<string>("Color")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("DisplayOrder")
                         .HasColumnType("integer");
-
-                    b.Property<string>("Icon")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -57,55 +50,43 @@ namespace DAL.Migrations
                         new
                         {
                             Id = new Guid("11111111-1111-1111-1111-111111111001"),
-                            Color = "#4CAF50",
                             CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             DisplayOrder = 1,
-                            Icon = "account-balance-wallet",
                             Name = "Tiền mặt"
                         },
                         new
                         {
                             Id = new Guid("11111111-1111-1111-1111-111111111002"),
-                            Color = "#2196F3",
                             CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             DisplayOrder = 2,
-                            Icon = "account-balance",
                             Name = "Tài khoản ngân hàng"
                         },
                         new
                         {
                             Id = new Guid("11111111-1111-1111-1111-111111111003"),
-                            Color = "#FF9800",
                             CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             DisplayOrder = 3,
-                            Icon = "credit-card",
                             Name = "Thẻ tín dụng"
                         },
                         new
                         {
                             Id = new Guid("11111111-1111-1111-1111-111111111004"),
-                            Color = "#9C27B0",
                             CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             DisplayOrder = 4,
-                            Icon = "trending-up",
                             Name = "Tài khoản đầu tư"
                         },
                         new
                         {
                             Id = new Guid("11111111-1111-1111-1111-111111111005"),
-                            Color = "#E91E63",
                             CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             DisplayOrder = 5,
-                            Icon = "wallet",
                             Name = "Ví điện tử"
                         },
                         new
                         {
                             Id = new Guid("11111111-1111-1111-1111-111111111006"),
-                            Color = "#607D8B",
                             CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             DisplayOrder = 6,
-                            Icon = "more-horiz",
                             Name = "Khác"
                         });
                 });

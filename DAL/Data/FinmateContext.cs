@@ -30,6 +30,7 @@ namespace DAL.Data
         public DbSet<Category> Categories { get; set; }
         public DbSet<Contact> Contacts { get; set; }
         public DbSet<Transaction> Transactions { get; set; }
+        public DbSet<Currency> Currencies { get; set; }
 
         //Nếu muốn cấu hình chi tiết thêm thì overrive OnModelCreating
         //Nếu đã sử dụng [] trc các attribute thì có thể ko cần method này 
@@ -127,6 +128,8 @@ namespace DAL.Data
                 {
                     Id = Guid.Parse("11111111-1111-1111-1111-111111111001"),
                     Name = "Tiền mặt",
+                    Icon = "account-balance-wallet",
+                    Color = "#4CAF50",
                     DisplayOrder = 1,
                     CreatedAt = seedTimestamp
                 },
@@ -134,6 +137,8 @@ namespace DAL.Data
                 {
                     Id = Guid.Parse("11111111-1111-1111-1111-111111111002"),
                     Name = "Tài khoản ngân hàng",
+                    Icon = "account-balance",
+                    Color = "#2196F3",
                     DisplayOrder = 2,
                     CreatedAt = seedTimestamp
                 },
@@ -141,6 +146,8 @@ namespace DAL.Data
                 {
                     Id = Guid.Parse("11111111-1111-1111-1111-111111111003"),
                     Name = "Thẻ tín dụng",
+                    Icon = "credit-card",
+                    Color = "#FF9800",
                     DisplayOrder = 3,
                     CreatedAt = seedTimestamp
                 },
@@ -148,6 +155,8 @@ namespace DAL.Data
                 {
                     Id = Guid.Parse("11111111-1111-1111-1111-111111111004"),
                     Name = "Tài khoản đầu tư",
+                    Icon = "trending-up",
+                    Color = "#9C27B0",
                     DisplayOrder = 4,
                     CreatedAt = seedTimestamp
                 },
@@ -155,6 +164,8 @@ namespace DAL.Data
                 {
                     Id = Guid.Parse("11111111-1111-1111-1111-111111111005"),
                     Name = "Ví điện tử",
+                    Icon = "wallet",
+                    Color = "#E91E63",
                     DisplayOrder = 5,
                     CreatedAt = seedTimestamp
                 },
@@ -162,6 +173,8 @@ namespace DAL.Data
                 {
                     Id = Guid.Parse("11111111-1111-1111-1111-111111111006"),
                     Name = "Khác",
+                    Icon = "more-horiz",
+                    Color = "#607D8B",
                     DisplayOrder = 6,
                     CreatedAt = seedTimestamp
                 }
@@ -204,6 +217,140 @@ namespace DAL.Data
                     IsIncome = true,
                     DisplayOrder = 4,
                     CreatedAt = seedTimestamp
+                }
+            );
+
+            // Seed data cho Currency
+            modelBuilder.Entity<Currency>().HasData(
+                new Currency
+                {
+                    Id = Guid.Parse("33333333-3333-3333-3333-333333333001"),
+                    Code = "VND",
+                    Name = "Vietnamese Dong",
+                    Symbol = "₫",
+                    CountryCode = "VN",
+                    DisplayOrder = 1,
+                    IsActive = true
+                },
+                new Currency
+                {
+                    Id = Guid.Parse("33333333-3333-3333-3333-333333333002"),
+                    Code = "VGO",
+                    Name = "Vietnamese Gold (SJC)",
+                    Symbol = "chỉ",
+                    CountryCode = "VN",
+                    DisplayOrder = 2,
+                    IsActive = true
+                },
+                new Currency
+                {
+                    Id = Guid.Parse("33333333-3333-3333-3333-333333333003"),
+                    Code = "USD",
+                    Name = "United States Dollar",
+                    Symbol = "$",
+                    CountryCode = "US",
+                    DisplayOrder = 3,
+                    IsActive = true
+                },
+                new Currency
+                {
+                    Id = Guid.Parse("33333333-3333-3333-3333-333333333004"),
+                    Code = "CNY",
+                    Name = "Chinese Yuan",
+                    Symbol = "¥",
+                    CountryCode = "CN",
+                    DisplayOrder = 4,
+                    IsActive = true
+                },
+                new Currency
+                {
+                    Id = Guid.Parse("33333333-3333-3333-3333-333333333005"),
+                    Code = "EUR",
+                    Name = "Euro",
+                    Symbol = "€",
+                    CountryCode = "EU",
+                    DisplayOrder = 5,
+                    IsActive = true
+                },
+                new Currency
+                {
+                    Id = Guid.Parse("33333333-3333-3333-3333-333333333006"),
+                    Code = "GBP",
+                    Name = "British Pound Sterling",
+                    Symbol = "£",
+                    CountryCode = "GB",
+                    DisplayOrder = 6,
+                    IsActive = true
+                },
+                new Currency
+                {
+                    Id = Guid.Parse("33333333-3333-3333-3333-333333333007"),
+                    Code = "JPY",
+                    Name = "Japanese Yen",
+                    Symbol = "¥",
+                    CountryCode = "JP",
+                    DisplayOrder = 7,
+                    IsActive = true
+                },
+                new Currency
+                {
+                    Id = Guid.Parse("33333333-3333-3333-3333-333333333008"),
+                    Code = "CHF",
+                    Name = "Swiss Franc",
+                    Symbol = "Fr.",
+                    CountryCode = "CH",
+                    DisplayOrder = 8,
+                    IsActive = true
+                },
+                new Currency
+                {
+                    Id = Guid.Parse("33333333-3333-3333-3333-333333333009"),
+                    Code = "AUD",
+                    Name = "Australian Dollar",
+                    Symbol = "$",
+                    CountryCode = "AU",
+                    DisplayOrder = 9,
+                    IsActive = true
+                },
+                new Currency
+                {
+                    Id = Guid.Parse("33333333-3333-3333-3333-333333333010"),
+                    Code = "SGD",
+                    Name = "Singapore Dollar",
+                    Symbol = "$",
+                    CountryCode = "SG",
+                    DisplayOrder = 10,
+                    IsActive = true
+                },
+                new Currency
+                {
+                    Id = Guid.Parse("33333333-3333-3333-3333-333333333011"),
+                    Code = "HKD",
+                    Name = "Hong Kong Dollar",
+                    Symbol = "$",
+                    CountryCode = "HK",
+                    DisplayOrder = 11,
+                    IsActive = true
+                },
+                new Currency
+                {
+                    Id = Guid.Parse("33333333-3333-3333-3333-333333333012"),
+                    Code = "KRW",
+                    Name = "South Korean Won",
+                    Symbol = "₩",
+                    CountryCode = "KR",
+                    DisplayOrder = 12,
+                    IsActive = true
+                },
+                new Currency
+                {
+                    Id = Guid.Parse("33333333-3333-3333-3333-333333333013"),
+                    Code = "THB",
+                    Name = "Thai Baht",
+                    Symbol = "฿",
+                    CountryCode = "TH",
+                    DisplayOrder = 13,
+                    IsActive = true
                 }
             );
         }
