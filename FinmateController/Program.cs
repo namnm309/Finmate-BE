@@ -1,9 +1,13 @@
+
 using DAL.Data;
 using DAL.Repositories;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using System.Text;
 using BLL.Services;
+using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.Extensions.Logging;
 
 namespace FinmateController
 {
@@ -13,24 +17,27 @@ namespace FinmateController
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            // =======================
-            // Add services
-            // =======================
+            // Add services to the container.
 
-            builder.Services.AddControllers();
-
-            // Swagger
+            builder.Services.AddControllers()
+                .AddJsonOptions(options =>
+                {
+                    // Cấu hình JSON serializer để dùng camelCase (để sync với mobile app)
+                    options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+                    options.JsonSerializerOptions.WriteIndented = true;
+                });
+            // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
 
             // HttpClient
             builder.Services.AddHttpClient();
+
+            // Register ClerkService với HttpClient riêng
             builder.Services.AddHttpClient<ClerkService>();
 
-            // JWT Authentication (Clerk)
-            var clerkInstanceUrl = builder.Configuration["Clerk:InstanceUrl"]
-                ?? throw new InvalidOperationException("Clerk:InstanceUrl is not configured");
-
+            // Cấu hình JWT Authentication với Clerk
+            var clerkInstanceUrl = builder.Configuration["Clerk:InstanceUrl"] ?? throw new InvalidOperationException("Clerk:InstanceUrl is not configured");
             var metadataAddress = $"{clerkInstanceUrl}/.well-known/openid-configuration";
 
             builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -41,7 +48,7 @@ namespace FinmateController
                     {
                         ValidateIssuer = true,
                         ValidIssuer = clerkInstanceUrl,
-                        ValidateAudience = false,
+                        ValidateAudience = false, // Clerk tokens không có audience
                         ValidateLifetime = true,
                         ValidateIssuerSigningKey = true,
                         NameClaimType = "sub"
@@ -50,37 +57,77 @@ namespace FinmateController
 
             builder.Services.AddAuthorization();
 
-            // Database
+            // Cấu hình DbContext
             builder.Services.AddDbContext<FinmateContext>(options =>
                 options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-            // Repositories
+            // Đăng ký Repository
             builder.Services.AddScoped<IUserRepository, UserRepository>();
+            builder.Services.AddScoped<IAccountTypeRepository, AccountTypeRepository>();
+            builder.Services.AddScoped<ITransactionTypeRepository, TransactionTypeRepository>();
+            builder.Services.AddScoped<IMoneySourceRepository, MoneySourceRepository>();
+            builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
+            builder.Services.AddScoped<IContactRepository, ContactRepository>();
+            builder.Services.AddScoped<ITransactionRepository, TransactionRepository>();
+            builder.Services.AddScoped<ICurrencyRepository, CurrencyRepository>();
 
-            // Services
+            // Đăng ký Services
             builder.Services.AddScoped<UserService>();
+            builder.Services.AddScoped<AccountTypeService>();
+            builder.Services.AddScoped<TransactionTypeService>();
+            builder.Services.AddScoped<MoneySourceService>();
+            builder.Services.AddScoped<CategoryService>();
+            builder.Services.AddScoped<ContactService>();
+            builder.Services.AddScoped<TransactionService>();
+            builder.Services.AddScoped<CurrencyService>();
+            builder.Services.AddScoped<ReportService>();
 
             var app = builder.Build();
 
-            // =======================
-            // Middleware pipeline
-            // =======================
-
-            // 👉 LUÔN bật Swagger (kể cả Azure)
+            // Configure the HTTP request pipeline.
+            // Enable Swagger in all environments (including production)
             app.UseSwagger();
-            app.UseSwaggerUI();
+            app.UseSwaggerUI(c =>
+            {
+                c.SwaggerEndpoint("/swagger/v1/swagger.json", "TechStore API v1");
+                c.RoutePrefix = "swagger"; // Swagger UI will be available at /swagger
+                c.DisplayRequestDuration();
+            });
 
-            // 🔥 FIX PUBLISH AZURE: redirect root & index.html → Swagger
-            app.MapGet("/", () => Results.Redirect("/swagger"))
-               .ExcludeFromDescription();
-
-            app.MapGet("/index.html", () => Results.Redirect("/swagger"))
-               .ExcludeFromDescription();
-
-            // Auto apply migrations
+            // Auto apply EF Core migrations at startup
             ApplyPendingMigrations(app);
 
             app.UseHttpsRedirection();
+
+            // Exception handling middleware - phải đặt trước UseAuthentication/UseAuthorization
+            app.UseExceptionHandler(errorApp =>
+            {
+                errorApp.Run(async context =>
+                {
+                    context.Response.StatusCode = 500;
+                    context.Response.ContentType = "application/json";
+
+                    var exceptionHandlerPathFeature = context.Features.Get<IExceptionHandlerPathFeature>();
+                    var exception = exceptionHandlerPathFeature?.Error;
+
+                    if (exception != null)
+                    {
+                        var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+                        logger.LogError(exception, "Unhandled exception: {Message}", exception.Message);
+
+                        var errorResponse = new
+                        {
+                            error = "Internal server error",
+                            message = exception.Message,
+                            innerError = exception.InnerException?.Message,
+                            stackTrace = exception.StackTrace,
+                            timestamp = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss UTC")
+                        };
+
+                        await context.Response.WriteAsJsonAsync(errorResponse);
+                    }
+                });
+            });
 
             app.UseAuthentication();
             app.UseAuthorization();
@@ -90,9 +137,7 @@ namespace FinmateController
             app.Run();
         }
 
-        // =======================
-        // Auto migrate database
-        // =======================
+        //Automatic migration
         private static void ApplyPendingMigrations(WebApplication app)
         {
             using var scope = app.Services.CreateScope();

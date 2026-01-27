@@ -3,6 +3,7 @@ using System;
 using DAL.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DAL.Migrations
 {
     [DbContext(typeof(FinmateContext))]
-    partial class FinmateContextModelSnapshot : ModelSnapshot
+    [Migration("20260121065357_AddManualInputEntities")]
+    partial class AddManualInputEntities
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -28,21 +31,11 @@ namespace DAL.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<string>("Color")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("DisplayOrder")
                         .HasColumnType("integer");
-
-                    b.Property<string>("Icon")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -57,55 +50,43 @@ namespace DAL.Migrations
                         new
                         {
                             Id = new Guid("11111111-1111-1111-1111-111111111001"),
-                            Color = "#4CAF50",
-                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedAt = new DateTime(2026, 1, 21, 6, 53, 55, 101, DateTimeKind.Utc).AddTicks(3803),
                             DisplayOrder = 1,
-                            Icon = "account-balance-wallet",
                             Name = "Tiền mặt"
                         },
                         new
                         {
                             Id = new Guid("11111111-1111-1111-1111-111111111002"),
-                            Color = "#2196F3",
-                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedAt = new DateTime(2026, 1, 21, 6, 53, 55, 101, DateTimeKind.Utc).AddTicks(4514),
                             DisplayOrder = 2,
-                            Icon = "account-balance",
                             Name = "Tài khoản ngân hàng"
                         },
                         new
                         {
                             Id = new Guid("11111111-1111-1111-1111-111111111003"),
-                            Color = "#FF9800",
-                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedAt = new DateTime(2026, 1, 21, 6, 53, 55, 101, DateTimeKind.Utc).AddTicks(4518),
                             DisplayOrder = 3,
-                            Icon = "credit-card",
                             Name = "Thẻ tín dụng"
                         },
                         new
                         {
                             Id = new Guid("11111111-1111-1111-1111-111111111004"),
-                            Color = "#9C27B0",
-                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedAt = new DateTime(2026, 1, 21, 6, 53, 55, 101, DateTimeKind.Utc).AddTicks(4520),
                             DisplayOrder = 4,
-                            Icon = "trending-up",
                             Name = "Tài khoản đầu tư"
                         },
                         new
                         {
                             Id = new Guid("11111111-1111-1111-1111-111111111005"),
-                            Color = "#E91E63",
-                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedAt = new DateTime(2026, 1, 21, 6, 53, 55, 101, DateTimeKind.Utc).AddTicks(4522),
                             DisplayOrder = 5,
-                            Icon = "wallet",
                             Name = "Ví điện tử"
                         },
                         new
                         {
                             Id = new Guid("11111111-1111-1111-1111-111111111006"),
-                            Color = "#607D8B",
-                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedAt = new DateTime(2026, 1, 21, 6, 53, 55, 101, DateTimeKind.Utc).AddTicks(4523),
                             DisplayOrder = 6,
-                            Icon = "more-horiz",
                             Name = "Khác"
                         });
                 });
@@ -195,175 +176,6 @@ namespace DAL.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("tbl_contacts");
-                });
-
-            modelBuilder.Entity("DAL.Models.Currency", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("character varying(10)");
-
-                    b.Property<string>("CountryCode")
-                        .IsRequired()
-                        .HasMaxLength(5)
-                        .HasColumnType("character varying(5)");
-
-                    b.Property<int>("DisplayOrder")
-                        .HasColumnType("integer");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("Symbol")
-                        .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("character varying(10)");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("tbl_currencies");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("33333333-3333-3333-3333-333333333001"),
-                            Code = "VND",
-                            CountryCode = "VN",
-                            DisplayOrder = 1,
-                            IsActive = true,
-                            Name = "Vietnamese Dong",
-                            Symbol = "₫"
-                        },
-                        new
-                        {
-                            Id = new Guid("33333333-3333-3333-3333-333333333002"),
-                            Code = "VGO",
-                            CountryCode = "VN",
-                            DisplayOrder = 2,
-                            IsActive = true,
-                            Name = "Vietnamese Gold (SJC)",
-                            Symbol = "chỉ"
-                        },
-                        new
-                        {
-                            Id = new Guid("33333333-3333-3333-3333-333333333003"),
-                            Code = "USD",
-                            CountryCode = "US",
-                            DisplayOrder = 3,
-                            IsActive = true,
-                            Name = "United States Dollar",
-                            Symbol = "$"
-                        },
-                        new
-                        {
-                            Id = new Guid("33333333-3333-3333-3333-333333333004"),
-                            Code = "CNY",
-                            CountryCode = "CN",
-                            DisplayOrder = 4,
-                            IsActive = true,
-                            Name = "Chinese Yuan",
-                            Symbol = "¥"
-                        },
-                        new
-                        {
-                            Id = new Guid("33333333-3333-3333-3333-333333333005"),
-                            Code = "EUR",
-                            CountryCode = "EU",
-                            DisplayOrder = 5,
-                            IsActive = true,
-                            Name = "Euro",
-                            Symbol = "€"
-                        },
-                        new
-                        {
-                            Id = new Guid("33333333-3333-3333-3333-333333333006"),
-                            Code = "GBP",
-                            CountryCode = "GB",
-                            DisplayOrder = 6,
-                            IsActive = true,
-                            Name = "British Pound Sterling",
-                            Symbol = "£"
-                        },
-                        new
-                        {
-                            Id = new Guid("33333333-3333-3333-3333-333333333007"),
-                            Code = "JPY",
-                            CountryCode = "JP",
-                            DisplayOrder = 7,
-                            IsActive = true,
-                            Name = "Japanese Yen",
-                            Symbol = "¥"
-                        },
-                        new
-                        {
-                            Id = new Guid("33333333-3333-3333-3333-333333333008"),
-                            Code = "CHF",
-                            CountryCode = "CH",
-                            DisplayOrder = 8,
-                            IsActive = true,
-                            Name = "Swiss Franc",
-                            Symbol = "Fr."
-                        },
-                        new
-                        {
-                            Id = new Guid("33333333-3333-3333-3333-333333333009"),
-                            Code = "AUD",
-                            CountryCode = "AU",
-                            DisplayOrder = 9,
-                            IsActive = true,
-                            Name = "Australian Dollar",
-                            Symbol = "$"
-                        },
-                        new
-                        {
-                            Id = new Guid("33333333-3333-3333-3333-333333333010"),
-                            Code = "SGD",
-                            CountryCode = "SG",
-                            DisplayOrder = 10,
-                            IsActive = true,
-                            Name = "Singapore Dollar",
-                            Symbol = "$"
-                        },
-                        new
-                        {
-                            Id = new Guid("33333333-3333-3333-3333-333333333011"),
-                            Code = "HKD",
-                            CountryCode = "HK",
-                            DisplayOrder = 11,
-                            IsActive = true,
-                            Name = "Hong Kong Dollar",
-                            Symbol = "$"
-                        },
-                        new
-                        {
-                            Id = new Guid("33333333-3333-3333-3333-333333333012"),
-                            Code = "KRW",
-                            CountryCode = "KR",
-                            DisplayOrder = 12,
-                            IsActive = true,
-                            Name = "South Korean Won",
-                            Symbol = "₩"
-                        },
-                        new
-                        {
-                            Id = new Guid("33333333-3333-3333-3333-333333333013"),
-                            Code = "THB",
-                            CountryCode = "TH",
-                            DisplayOrder = 13,
-                            IsActive = true,
-                            Name = "Thai Baht",
-                            Symbol = "฿"
-                        });
                 });
 
             modelBuilder.Entity("DAL.Models.MoneySource", b =>
@@ -521,7 +333,7 @@ namespace DAL.Migrations
                         {
                             Id = new Guid("22222222-2222-2222-2222-222222222001"),
                             Color = "#F87171",
-                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedAt = new DateTime(2026, 1, 21, 6, 53, 55, 101, DateTimeKind.Utc).AddTicks(8888),
                             DisplayOrder = 1,
                             IsIncome = false,
                             Name = "Chi tiêu"
@@ -530,7 +342,7 @@ namespace DAL.Migrations
                         {
                             Id = new Guid("22222222-2222-2222-2222-222222222002"),
                             Color = "#34D399",
-                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedAt = new DateTime(2026, 1, 21, 6, 53, 55, 101, DateTimeKind.Utc).AddTicks(9670),
                             DisplayOrder = 2,
                             IsIncome = true,
                             Name = "Thu tiền"
@@ -539,7 +351,7 @@ namespace DAL.Migrations
                         {
                             Id = new Guid("22222222-2222-2222-2222-222222222003"),
                             Color = "#FBBF24",
-                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedAt = new DateTime(2026, 1, 21, 6, 53, 55, 101, DateTimeKind.Utc).AddTicks(9674),
                             DisplayOrder = 3,
                             IsIncome = false,
                             Name = "Cho vay"
@@ -548,7 +360,7 @@ namespace DAL.Migrations
                         {
                             Id = new Guid("22222222-2222-2222-2222-222222222004"),
                             Color = "#A78BFA",
-                            CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            CreatedAt = new DateTime(2026, 1, 21, 6, 53, 55, 101, DateTimeKind.Utc).AddTicks(9676),
                             DisplayOrder = 4,
                             IsIncome = true,
                             Name = "Đi vay"

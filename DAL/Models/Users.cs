@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
@@ -33,6 +33,12 @@ namespace DAL.Models
         [MaxLength(500)]
         public string AvatarUrl { get; set; }
 
+        [MaxLength(500)]
+        public string? Address { get; set; }
+
+        [MaxLength(255)]
+        public string? Occupation { get; set; }
+
         public DateTime? DateOfBirth { get; set; }
 
         [MaxLength(10)]
@@ -43,5 +49,11 @@ namespace DAL.Models
 
         public bool IsActive { get; set; } = true;
         public bool IsPremium { get; set; } = false;
+
+        // Navigation properties
+        public virtual ICollection<MoneySource> MoneySources { get; set; } = new List<MoneySource>();
+        public virtual ICollection<Category> Categories { get; set; } = new List<Category>();
+        public virtual ICollection<Contact> Contacts { get; set; } = new List<Contact>();
+        public virtual ICollection<Transaction> Transactions { get; set; } = new List<Transaction>();
     }
 }
