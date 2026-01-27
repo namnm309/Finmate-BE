@@ -84,9 +84,10 @@ namespace FinmateController.Controllers
 
         /// <summary>
         /// Lấy thông tin user hiện tại từ JWT token
+        /// Hỗ trợ cả token từ Clerk và token basic (scheme "Basic")
         /// </summary>
         [HttpGet("me")]
-        [Authorize]
+        [Authorize(AuthenticationSchemes = "Clerk,Basic")]
         public async Task<IActionResult> GetCurrentUser()
         {
             try
@@ -133,7 +134,7 @@ namespace FinmateController.Controllers
         /// Sync user từ Clerk vào database sau khi login
         /// </summary>
         [HttpPost("sync")]
-        [Authorize]
+        [Authorize(AuthenticationSchemes = "Clerk,Basic")]
         public async Task<IActionResult> SyncUser()
         {
             try
@@ -207,7 +208,7 @@ namespace FinmateController.Controllers
         /// Test endpoint để kiểm tra authentication
         /// </summary>
         [HttpGet("test")]
-        [Authorize]
+        [Authorize(AuthenticationSchemes = "Clerk,Basic")]
         public IActionResult TestAuth()
         {
             var claims = User.Claims.Select(c => new { c.Type, c.Value }).ToList();

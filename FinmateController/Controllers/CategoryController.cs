@@ -8,7 +8,7 @@ namespace FinmateController.Controllers
 {
     [ApiController]
     [Route("api/categories")]
-    [Authorize]
+    [Authorize(AuthenticationSchemes = "Clerk,Basic")]
     public class CategoryController : ControllerBase
     {
         private readonly CategoryService _categoryService;

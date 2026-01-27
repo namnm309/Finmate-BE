@@ -8,7 +8,7 @@ namespace FinmateController.Controllers
 {
     [ApiController]
     [Route("api/reports")]
-    [Authorize]
+    [Authorize(AuthenticationSchemes = "Clerk,Basic")]
     public class ReportController : ControllerBase
     {
         private readonly ReportService _reportService;

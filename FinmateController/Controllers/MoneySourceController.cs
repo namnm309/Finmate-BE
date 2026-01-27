@@ -8,7 +8,7 @@ namespace FinmateController.Controllers
 {
     [ApiController]
     [Route("api/money-sources")]
-    [Authorize]
+    [Authorize(AuthenticationSchemes = "Clerk,Basic")]
     public class MoneySourceController : ControllerBase
     {
         private readonly MoneySourceService _moneySourceService;
