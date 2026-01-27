@@ -116,6 +116,11 @@ namespace FinmateController
             // Services
             builder.Services.AddScoped<UserService>();
             builder.Services.AddScoped<AuthService>(); // basic register/login service
+            builder.Services.AddScoped<MoneySourceService>();
+            builder.Services.AddScoped<TransactionService>();
+            builder.Services.AddScoped<TransactionTypeService>();
+            builder.Services.AddScoped<CategoryService>();
+            builder.Services.AddScoped<ReportService>();
 
             // CORS mở cho toàn bộ origin/port (tùy chỉnh sau qua cấu hình nếu cần khóa lại)
             builder.Services.AddCors(options =>
