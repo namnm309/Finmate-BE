@@ -50,6 +50,10 @@ namespace DAL.Models
         public bool IsActive { get; set; } = true;
         public bool IsPremium { get; set; } = false;
 
+        // Role (User/Staff/Admin) - dùng cho basic login
+        [Required]
+        public Role Role { get; set; } = Role.User;
+
         // Navigation properties
         public virtual ICollection<MoneySource> MoneySources { get; set; } = new List<MoneySource>();
         public virtual ICollection<Category> Categories { get; set; } = new List<Category>();
