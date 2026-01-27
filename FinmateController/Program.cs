@@ -1,11 +1,12 @@
-using System.Security.Claims;
-using System.Text;
 using DAL.Data;
 using DAL.Repositories;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using System.Text;
 using BLL.Services;
+using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.Extensions.Logging;
 
 namespace FinmateController
 {
@@ -15,32 +16,28 @@ namespace FinmateController
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            // =======================
-            // Add services
-            // =======================
+            // Add services to the container.
 
-            builder.Services.AddControllers();
-
-            // Swagger
+            builder.Services.AddControllers()
+                .AddJsonOptions(options =>
+                {
+                    // Cấu hình JSON serializer để dùng camelCase (để sync với mobile app)
+                    options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+                    options.JsonSerializerOptions.WriteIndented = true;
+                });
+            // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
 
             // HttpClient
             builder.Services.AddHttpClient();
+
+            // Register ClerkService với HttpClient riêng
             builder.Services.AddHttpClient<ClerkService>();
 
-            // JWT Authentication (Basic - không dùng Clerk)
-            var jwtSecret = builder.Configuration["Jwt:SecretKey"]
-                ?? throw new InvalidOperationException("Jwt:SecretKey is not configured");
-            
-            // Validate JWT SecretKey length (ít nhất 32 ký tự cho security)
-            if (jwtSecret.Length < 32)
-            {
-                throw new InvalidOperationException("Jwt:SecretKey must be at least 32 characters long for security");
-            }
-            
-            var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "FinmateAPI";
-            var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "FinmateClient";
+            // Cấu hình JWT Authentication với Clerk
+            var clerkInstanceUrl = builder.Configuration["Clerk:InstanceUrl"] ?? throw new InvalidOperationException("Clerk:InstanceUrl is not configured");
+            var metadataAddress = $"{clerkInstanceUrl}/.well-known/openid-configuration";
 
             builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 .AddJwtBearer(options =>
@@ -48,9 +45,8 @@ namespace FinmateController
                     options.TokenValidationParameters = new TokenValidationParameters
                     {
                         ValidateIssuer = true,
-                        ValidIssuer = jwtIssuer,
-                        ValidateAudience = true,
-                        ValidAudience = jwtAudience,
+                        ValidIssuer = clerkInstanceUrl,
+                        ValidateAudience = false,
                         ValidateLifetime = true,
                         ValidateIssuerSigningKey = true,
                         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
@@ -63,69 +59,48 @@ namespace FinmateController
                 // Policy cho Admin - quyền cao nhất
                 options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
 
-                // Policy cho Staff trở lên (Staff và Admin)
-                options.AddPolicy("StaffOrAbove", policy => policy.RequireRole("Admin", "Staff"));
-
-                // Policy cho User trở lên (tất cả user đã đăng nhập)
-                options.AddPolicy("UserOrAbove", policy => policy.RequireRole("Admin", "Staff", "User"));
-            });
-
             // Database
-            var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-            if (string.IsNullOrEmpty(connectionString))
-            {
-                throw new InvalidOperationException("DefaultConnection connection string is not configured");
-            }
-            
             builder.Services.AddDbContext<FinmateContext>(options =>
                 options.UseNpgsql(connectionString));
 
-            // Repositories
+            // Đăng ký Repository
             builder.Services.AddScoped<IUserRepository, UserRepository>();
+            builder.Services.AddScoped<IAccountTypeRepository, AccountTypeRepository>();
+            builder.Services.AddScoped<ITransactionTypeRepository, TransactionTypeRepository>();
+            builder.Services.AddScoped<IMoneySourceRepository, MoneySourceRepository>();
+            builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
+            builder.Services.AddScoped<IContactRepository, ContactRepository>();
+            builder.Services.AddScoped<ITransactionRepository, TransactionRepository>();
+            builder.Services.AddScoped<ICurrencyRepository, CurrencyRepository>();
 
-            // Services
+            // Đăng ký Services
             builder.Services.AddScoped<UserService>();
-            builder.Services.AddScoped<AuthService>();
 
             var app = builder.Build();
 
-            // =======================
-            // Middleware pipeline
-            // =======================
-
-            // 🔥 FIX PUBLISH AZURE: redirect root & index.html → Swagger
-            // Dùng middleware để redirect ngay từ đầu pipeline
-            app.Use(async (context, next) =>
-            {
-                var path = context.Request.Path.Value?.ToLower();
-                if (path == "/" || path == "/index.html")
-                {
-                    context.Response.Redirect("/swagger/index.html", permanent: false);
-                    return;
-                }
-                await next();
-            });
-
-            // MapGet như backup (nếu middleware không catch được)
-            app.MapGet("/", () => Results.Redirect("/swagger/index.html", permanent: false))
-               .ExcludeFromDescription();
-
-            app.MapGet("/index.html", () => Results.Redirect("/swagger/index.html", permanent: false))
-               .ExcludeFromDescription();
-
-            // 👉 LUÔN bật Swagger (kể cả Azure)
+            // Configure the HTTP request pipeline.
+            // Enable Swagger in all environments (including production)
             app.UseSwagger();
             app.UseSwaggerUI(c =>
             {
-                c.SwaggerEndpoint("/swagger/v1/swagger.json", "FinmateController API v1");
-                c.RoutePrefix = "swagger";
+                c.SwaggerEndpoint("/swagger/v1/swagger.json", "TechStore API v1");
+                c.RoutePrefix = "swagger"; // Swagger UI will be available at /swagger
+                c.DisplayRequestDuration();
             });
+
+            // 👉 LUÔN bật Swagger (kể cả Azure)
+            app.UseSwagger();
+            app.UseSwaggerUI();
+
+            // 🔥 FIX PUBLISH AZURE: redirect root & index.html → Swagger
+            app.MapGet("/", () => Results.Redirect("/swagger"))
+               .ExcludeFromDescription();
+
+            app.MapGet("/index.html", () => Results.Redirect("/swagger"))
+               .ExcludeFromDescription();
 
             // Auto apply migrations
             ApplyPendingMigrations(app);
-
-            // Seed admin user
-            SeedAdminUser(app);
 
             app.UseHttpsRedirection();
 
@@ -137,9 +112,7 @@ namespace FinmateController
             app.Run();
         }
 
-        // =======================
-        // Auto migrate database
-        // =======================
+        //Automatic migration
         private static void ApplyPendingMigrations(WebApplication app)
         {
             try

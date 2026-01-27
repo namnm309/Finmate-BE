@@ -189,9 +189,9 @@ namespace FinmateController.Controllers
                     LastName = clerkUser.LastName,
                     PhoneNumber = clerkUser.PhoneNumber,
                     ImageUrl = clerkUser.ImageUrl,
-                    CreatedAt = clerkUser.CreatedAt,
-                    UpdatedAt = clerkUser.UpdatedAt,
-                    LastSignInAt = clerkUser.LastSignInAt
+                    CreatedAt = clerkUser.GetCreatedAtDateTime(),
+                    UpdatedAt = clerkUser.GetUpdatedAtDateTime(),
+                    LastSignInAt = clerkUser.GetLastSignInAtDateTime()
                 };
 
                 return Ok(response);
