@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
@@ -43,5 +43,8 @@ namespace DAL.Models
 
         public bool IsActive { get; set; } = true;
         public bool IsPremium { get; set; } = false;
+
+        [Required]
+        public Role Role { get; set; } = Role.User;
     }
 }

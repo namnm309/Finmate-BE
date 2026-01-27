@@ -63,15 +63,28 @@ namespace BLL.Services
         /// </summary>
         public async Task<Users> CreateUserFromClerkAsync(ClerkUserInfo clerkUser)
         {
+            if (clerkUser == null)
+            {
+                throw new ArgumentNullException(nameof(clerkUser));
+            }
+
+            // Đảm bảo email không rỗng
+            var email = clerkUser.EmailAddress?.Trim().ToLower();
+            if (string.IsNullOrEmpty(email))
+            {
+                throw new InvalidOperationException("Clerk user email is required");
+            }
+
             var user = new Users
             {
                 ClerkUserId = clerkUser.Id,
-                Email = clerkUser.EmailAddress ?? "",
+                Email = email,
                 FullName = $"{clerkUser.FirstName ?? ""} {clerkUser.LastName ?? ""}".Trim(),
                 PhoneNumber = clerkUser.PhoneNumber,
                 AvatarUrl = clerkUser.ImageUrl,
                 PasswordHash = "", // Clerk users không cần password
                 IsActive = true,
+                Role = Role.User, // Clerk users mặc định là User
                 CreatedAt = clerkUser.CreatedAt ?? DateTime.UtcNow,
                 UpdatedAt = clerkUser.UpdatedAt ?? DateTime.UtcNow,
                 LastLoginAt = clerkUser.LastSignInAt
@@ -85,10 +98,22 @@ namespace BLL.Services
         /// </summary>
         public async Task<Users> CreateUserFromWebhookAsync(ClerkWebhookData webhookData)
         {
+            if (webhookData == null)
+            {
+                throw new ArgumentNullException(nameof(webhookData));
+            }
+
             // Lấy email từ email addresses (lấy email đầu tiên đã verified hoặc email đầu tiên)
             var email = webhookData.EmailAddresses?.FirstOrDefault(e => e.Verified == true)?.EmailAddress
                 ?? webhookData.EmailAddresses?.FirstOrDefault()?.EmailAddress
                 ?? string.Empty;
+
+            // Đảm bảo email không rỗng
+            email = email.Trim().ToLower();
+            if (string.IsNullOrEmpty(email))
+            {
+                throw new InvalidOperationException("Webhook user email is required");
+            }
 
             var user = new Users
             {
@@ -99,6 +124,7 @@ namespace BLL.Services
                 AvatarUrl = webhookData.ImageUrl,
                 PasswordHash = "", // Clerk users không cần password hash
                 IsActive = true,
+                Role = Role.User, // Clerk users mặc định là User
                 CreatedAt = webhookData.CreatedAt ?? DateTime.UtcNow,
                 UpdatedAt = webhookData.UpdatedAt ?? DateTime.UtcNow,
                 LastLoginAt = webhookData.LastSignInAt
@@ -194,6 +220,7 @@ namespace BLL.Services
                 AvatarUrl = user.AvatarUrl,
                 IsActive = user.IsActive,
                 IsPremium = user.IsPremium,
+                Role = user.Role,
                 CreatedAt = user.CreatedAt,
                 UpdatedAt = user.UpdatedAt,
                 LastLoginAt = user.LastLoginAt
