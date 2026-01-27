@@ -61,6 +61,8 @@ namespace BLL.Services
                 PasswordHash = passwordHash,
                 FullName = request.FullName?.Trim() ?? throw new ArgumentException("FullName is required", nameof(request)),
                 PhoneNumber = request.PhoneNumber?.Trim(),
+                // DB đang set AvatarUrl NOT NULL, nên phải gán default để tránh lỗi 23502
+                AvatarUrl = "",
                 IsActive = true,
                 IsPremium = false,
                 Role = Role.User,
