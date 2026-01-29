@@ -60,5 +60,6 @@ namespace DAL.Models
         public virtual ICollection<Contact> Contacts { get; set; } = new List<Contact>();
         public virtual ICollection<Transaction> Transactions { get; set; } = new List<Transaction>();
         public virtual ICollection<Goal> Goals { get; set; } = new List<Goal>();
+        public virtual ICollection<PremiumSubscription> PremiumSubscriptions { get; set; } = new List<PremiumSubscription>();
     }
 }

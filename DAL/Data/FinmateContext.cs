@@ -32,6 +32,7 @@ namespace DAL.Data
         public DbSet<Transaction> Transactions { get; set; }
         public DbSet<Currency> Currencies { get; set; }
         public DbSet<Goal> Goals { get; set; }
+        public DbSet<PremiumSubscription> PremiumSubscriptions { get; set; }
 
         //Nếu muốn cấu hình chi tiết thêm thì overrive OnModelCreating
         //Nếu đã sử dụng [] trc các attribute thì có thể ko cần method này 
@@ -66,6 +67,11 @@ namespace DAL.Data
                 entity.HasMany(u => u.Goals)
                     .WithOne(g => g.User)
                     .HasForeignKey(g => g.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasMany(u => u.PremiumSubscriptions)
+                    .WithOne(p => p.User)
+                    .HasForeignKey(p => p.UserId)
                     .OnDelete(DeleteBehavior.Cascade);
             });
 
@@ -117,6 +123,24 @@ namespace DAL.Data
                     .WithOne(t => t.Contact)
                     .HasForeignKey(t => t.ContactId)
                     .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            // PremiumSubscription configuration
+            modelBuilder.Entity<PremiumSubscription>(entity =>
+            {
+                // Check constraint cho Plan
+                entity.HasCheckConstraint("CK_PremiumSubscriptions_Plan", 
+                    "Plan IN ('1-month', '6-month', '1-year')");
+
+                // Indexes
+                entity.HasIndex(p => p.UserId)
+                    .HasDatabaseName("IX_PremiumSubscriptions_UserId");
+
+                entity.HasIndex(p => p.IsActive)
+                    .HasDatabaseName("IX_PremiumSubscriptions_IsActive");
+
+                entity.HasIndex(p => p.ExpiresAt)
+                    .HasDatabaseName("IX_PremiumSubscriptions_ExpiresAt");
             });
 
             // Transaction configuration
