@@ -31,6 +31,7 @@ namespace DAL.Data
         public DbSet<Contact> Contacts { get; set; }
         public DbSet<Transaction> Transactions { get; set; }
         public DbSet<Currency> Currencies { get; set; }
+        public DbSet<Goal> Goals { get; set; }
 
         //Nếu muốn cấu hình chi tiết thêm thì overrive OnModelCreating
         //Nếu đã sử dụng [] trc các attribute thì có thể ko cần method này 
@@ -60,6 +61,11 @@ namespace DAL.Data
                 entity.HasMany(u => u.Transactions)
                     .WithOne(t => t.User)
                     .HasForeignKey(t => t.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasMany(u => u.Goals)
+                    .WithOne(g => g.User)
+                    .HasForeignKey(g => g.UserId)
                     .OnDelete(DeleteBehavior.Cascade);
             });
 

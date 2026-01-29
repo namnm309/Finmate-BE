@@ -59,5 +59,6 @@ namespace DAL.Models
         public virtual ICollection<Category> Categories { get; set; } = new List<Category>();
         public virtual ICollection<Contact> Contacts { get; set; } = new List<Contact>();
         public virtual ICollection<Transaction> Transactions { get; set; } = new List<Transaction>();
+        public virtual ICollection<Goal> Goals { get; set; } = new List<Goal>();
     }
 }

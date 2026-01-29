@@ -112,6 +112,7 @@ namespace FinmateController
             builder.Services.AddScoped<IContactRepository, ContactRepository>();
             builder.Services.AddScoped<ITransactionRepository, TransactionRepository>();
             builder.Services.AddScoped<ICurrencyRepository, CurrencyRepository>();
+            builder.Services.AddScoped<IGoalRepository, GoalRepository>();
 
             // Services
             builder.Services.AddScoped<UserService>();
@@ -121,6 +122,7 @@ namespace FinmateController
             builder.Services.AddScoped<TransactionTypeService>();
             builder.Services.AddScoped<CategoryService>();
             builder.Services.AddScoped<ReportService>();
+            builder.Services.AddScoped<GoalService>();
 
             // CORS mở cho toàn bộ origin/port (tùy chỉnh sau qua cấu hình nếu cần khóa lại)
             builder.Services.AddCors(options =>
