@@ -13,38 +13,108 @@ namespace FinmateController.Controllers
     {
         private readonly UserService _userService;
         private readonly ClerkService _clerkService;
+        private readonly AuthService _authService;
         private readonly ILogger<AuthController> _logger;
 
         public AuthController(
             UserService userService,
             ClerkService clerkService,
+            AuthService authService,
             ILogger<AuthController> logger)
         {
             _userService = userService;
             _clerkService = clerkService;
+            _authService = authService;
             _logger = logger;
         }
 
         /// <summary>
+        /// Đăng ký tài khoản mới với username/password
+        /// </summary>
+        [HttpPost("register")]
+        public async Task<IActionResult> Register([FromBody] RegisterRequestDto request)
+        {
+            try
+            {
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(ModelState);
+                }
+
+                var userDto = await _authService.RegisterAsync(request);
+                return Ok(userDto);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error registering user");
+                return StatusCode(500, new { message = "Internal server error" });
+            }
+        }
+
+        /// <summary>
+        /// Đăng nhập với email/password và nhận JWT token
+        /// </summary>
+        [HttpPost("login")]
+        public async Task<IActionResult> Login([FromBody] LoginRequestDto request)
+        {
+            try
+            {
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(ModelState);
+                }
+
+                var loginResponse = await _authService.LoginAsync(request);
+                return Ok(loginResponse);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return Unauthorized(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error logging in user");
+                return StatusCode(500, new { message = "Internal server error" });
+            }
+        }
+
+        /// <summary>
         /// Lấy thông tin user hiện tại từ JWT token
+        /// Hỗ trợ cả token từ Clerk và token basic (scheme "Basic")
         /// </summary>
         [HttpGet("me")]
-        [Authorize]
+        [Authorize(AuthenticationSchemes = "Clerk,Basic")]
         public async Task<IActionResult> GetCurrentUser()
         {
             try
             {
-                // Lấy Clerk user ID từ claims
-                var clerkUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                    ?? User.FindFirst("sub")?.Value;
+                // Lấy user ID từ claims (JWT token mới)
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                    ?? User.FindFirst("userId")?.Value;
 
-                if (string.IsNullOrEmpty(clerkUserId))
+                if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
                 {
+                    // Fallback: thử lấy từ Clerk (nếu vẫn dùng Clerk token)
+                    var clerkUserId = User.FindFirst("sub")?.Value;
+                    if (!string.IsNullOrEmpty(clerkUserId))
+                    {
+                        var clerkUserDto = await _userService.GetOrCreateUserFromClerkAsync(clerkUserId);
+                        if (clerkUserDto == null)
+                        {
+                            return NotFound("User not found");
+                        }
+                        return Ok(clerkUserDto);
+                    }
+
                     return Unauthorized("Invalid token");
                 }
 
-                // Lấy hoặc tạo user từ BLL
-                var userDto = await _userService.GetOrCreateUserFromClerkAsync(clerkUserId);
+                // Lấy user từ database bằng userId
+                var userDto = await _userService.GetUserByIdAsync(userId);
                 
                 if (userDto == null)
                 {
@@ -64,7 +134,7 @@ namespace FinmateController.Controllers
         /// Sync user từ Clerk vào database sau khi login
         /// </summary>
         [HttpPost("sync")]
-        [Authorize]
+        [Authorize(AuthenticationSchemes = "Clerk,Basic")]
         public async Task<IActionResult> SyncUser()
         {
             try
@@ -138,7 +208,7 @@ namespace FinmateController.Controllers
         /// Test endpoint để kiểm tra authentication
         /// </summary>
         [HttpGet("test")]
-        [Authorize]
+        [Authorize(AuthenticationSchemes = "Clerk,Basic")]
         public IActionResult TestAuth()
         {
             var claims = User.Claims.Select(c => new { c.Type, c.Value }).ToList();

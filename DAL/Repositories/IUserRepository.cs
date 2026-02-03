@@ -6,6 +6,7 @@ namespace DAL.Repositories
     {
         Task<Users?> GetByClerkUserIdAsync(string clerkUserId);
         Task<Users?> GetByIdAsync(Guid id);
+        Task<Users?> GetByEmailAsync(string email);
         Task<Users> AddAsync(Users user);
         Task<Users> UpdateAsync(Users user);
         Task<int> SaveChangesAsync();

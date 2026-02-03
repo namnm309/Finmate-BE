@@ -25,6 +25,12 @@ namespace DAL.Repositories
                 .FirstOrDefaultAsync(u => u.Id == id);
         }
 
+        public async Task<Users?> GetByEmailAsync(string email)
+        {
+            return await _context.Users
+                .FirstOrDefaultAsync(u => u.Email == email);
+        }
+
         public async Task<Users> AddAsync(Users user)
         {
             _context.Users.Add(user);

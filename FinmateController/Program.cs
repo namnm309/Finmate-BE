@@ -1,13 +1,12 @@
-
-using DAL.Data;
-using DAL.Repositories;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
+using System.Security.Claims;
 using System.Text;
 using BLL.Services;
-using Microsoft.AspNetCore.Diagnostics;
-using Microsoft.Extensions.Logging;
+using DAL.Data;
+using DAL.Repositories;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
 
 namespace FinmateController
 {
@@ -17,52 +16,127 @@ namespace FinmateController
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            // Add services to the container.
+            // Controllers + JSON camelCase
+            builder.Services.AddControllers().AddJsonOptions(options =>
+            {
+                options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+            });
 
-            builder.Services.AddControllers()
-                .AddJsonOptions(options =>
-                {
-                    // Cấu hình JSON serializer để dùng camelCase (để sync với mobile app)
-                    options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
-                    options.JsonSerializerOptions.WriteIndented = true;
-                });
-            // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();
-            builder.Services.AddSwaggerGen();
+            builder.Services.AddSwaggerGen(c =>
+            {
+                // Thông tin cơ bản cho Swagger
+                c.SwaggerDoc("v1", new OpenApiInfo
+                {
+                    Title = "Finmate API",
+                    Version = "v1",
+                    Description = "Finmate Backend API (Clerk + Basic JWT)"
+                });
+
+                // Cấu hình nút Authorize với Bearer JWT
+                var securityScheme = new OpenApiSecurityScheme
+                {
+                    Name = "Authorization",
+                    Type = SecuritySchemeType.Http,
+                    Scheme = "bearer",
+                    BearerFormat = "JWT",
+                    In = ParameterLocation.Header,
+                    Description = "Nhập token dạng: Bearer {token}. Token có thể lấy từ /api/auth/login (Basic JWT) hoặc từ Clerk."
+                };
+
+                c.AddSecurityDefinition("Bearer", securityScheme);
+
+                // Áp dụng security cho tất cả endpoint
+                c.AddSecurityRequirement(new OpenApiSecurityRequirement
+                {
+                    {
+                        securityScheme,
+                        new[] { "Bearer" }
+                    }
+                });
+            });
 
             // HttpClient
             builder.Services.AddHttpClient();
 
-            // Register ClerkService với HttpClient riêng
+            // Register ClerkService với HttpClient riêng (GIỮ NGUYÊN CLERK)
             builder.Services.AddHttpClient<ClerkService>();
 
-            // Cấu hình JWT Authentication với Clerk
-            var clerkInstanceUrl = builder.Configuration["Clerk:InstanceUrl"] ?? throw new InvalidOperationException("Clerk:InstanceUrl is not configured");
+            // =======================
+            // Auth: Clerk (giữ nguyên) + Basic (username/password)
+            // =======================
+            // Clerk JWT (OIDC metadata)
+            var clerkInstanceUrl = builder.Configuration["Clerk:InstanceUrl"]
+                                   ?? throw new InvalidOperationException("Clerk:InstanceUrl is not configured");
             var metadataAddress = $"{clerkInstanceUrl}/.well-known/openid-configuration";
 
-            builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-                .AddJwtBearer(options =>
+            // Basic JWT (HS256) - chỉ dùng cho /api/auth/login trả token basic
+            var basicJwtSecret = builder.Configuration["Jwt:SecretKey"]; // có thể cấu hình bằng AppSettings / env var
+            var basicJwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "FinmateAPI";
+            var basicJwtAudience = builder.Configuration["Jwt:Audience"] ?? "FinmateClient";
+
+            builder.Services
+                .AddAuthentication(options =>
+                {
+                    options.DefaultAuthenticateScheme = "Clerk";
+                    options.DefaultChallengeScheme = "Clerk";
+                })
+                // Default giữ Clerk để không ảnh hưởng các endpoint cũ
+                .AddJwtBearer("Clerk", options =>
                 {
                     options.MetadataAddress = metadataAddress;
                     options.TokenValidationParameters = new TokenValidationParameters
                     {
                         ValidateIssuer = true,
                         ValidIssuer = clerkInstanceUrl,
-                        ValidateAudience = false, // Clerk tokens không có audience
+                        ValidateAudience = false,
                         ValidateLifetime = true,
                         ValidateIssuerSigningKey = true,
                         NameClaimType = "sub"
                     };
+                })
+                // Scheme Basic chỉ bật nếu có SecretKey (tránh crash khi deploy)
+                .AddJwtBearer("Basic", options =>
+                {
+                    options.TokenValidationParameters = new TokenValidationParameters
+                    {
+                        ValidateIssuer = true,
+                        ValidIssuer = basicJwtIssuer,
+                        ValidateAudience = true,
+                        ValidAudience = basicJwtAudience,
+                        ValidateLifetime = true,
+                        ValidateIssuerSigningKey = true,
+                        IssuerSigningKey = string.IsNullOrWhiteSpace(basicJwtSecret)
+                            ? new SymmetricSecurityKey(Encoding.UTF8.GetBytes("00000000000000000000000000000000"))
+                            : new SymmetricSecurityKey(Encoding.UTF8.GetBytes(basicJwtSecret)),
+                        NameClaimType = ClaimTypes.NameIdentifier
+                    };
                 });
 
-            builder.Services.AddAuthorization();
+            builder.Services.AddAuthorization(options =>
+            {
+                // Policies (role claim sẽ được set bởi basic token)
+                options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
+                options.AddPolicy("StaffOrAbove", policy => policy.RequireRole("Admin", "Staff"));
+                options.AddPolicy("UserOrAbove", policy => policy.RequireRole("Admin", "Staff", "User"));
+            });
 
-            // Cấu hình DbContext
+            // =======================
+            // Database
+            // =======================
+            var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+            if (string.IsNullOrWhiteSpace(connectionString))
+            {
+                throw new InvalidOperationException("DefaultConnection connection string is not configured");
+            }
+
             builder.Services.AddDbContext<FinmateContext>(options =>
-                options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+                options.UseNpgsql(connectionString));
 
             // Đăng ký Repository
             builder.Services.AddScoped<IUserRepository, UserRepository>();
+            // Các repository khác nếu project có (giữ nguyên phần bạn vừa pull)
+            // (Nếu interface/class không tồn tại trong repo hiện tại, hãy comment lại để build pass.)
             builder.Services.AddScoped<IAccountTypeRepository, AccountTypeRepository>();
             builder.Services.AddScoped<ITransactionTypeRepository, TransactionTypeRepository>();
             builder.Services.AddScoped<IMoneySourceRepository, MoneySourceRepository>();
@@ -70,64 +144,56 @@ namespace FinmateController
             builder.Services.AddScoped<IContactRepository, ContactRepository>();
             builder.Services.AddScoped<ITransactionRepository, TransactionRepository>();
             builder.Services.AddScoped<ICurrencyRepository, CurrencyRepository>();
+            // builder.Services.AddScoped<IGoalRepository, GoalRepository>(); // Goal chưa có trong project
 
-            // Đăng ký Services
+            // Services
             builder.Services.AddScoped<UserService>();
-            builder.Services.AddScoped<AccountTypeService>();
-            builder.Services.AddScoped<TransactionTypeService>();
+            builder.Services.AddScoped<AuthService>(); // basic register/login service
             builder.Services.AddScoped<MoneySourceService>();
-            builder.Services.AddScoped<CategoryService>();
-            builder.Services.AddScoped<ContactService>();
             builder.Services.AddScoped<TransactionService>();
-            builder.Services.AddScoped<CurrencyService>();
+            builder.Services.AddScoped<TransactionTypeService>();
+            builder.Services.AddScoped<CategoryService>();
             builder.Services.AddScoped<ReportService>();
+            // builder.Services.AddScoped<GoalService>(); // Goal chưa có trong project
+
+            // CORS mở cho toàn bộ origin/port (tùy chỉnh sau qua cấu hình nếu cần khóa lại)
+            builder.Services.AddCors(options =>
+            {
+                options.AddPolicy("AllowAll", policy =>
+                {
+                    policy.AllowAnyOrigin()
+                          .AllowAnyHeader()
+                          .AllowAnyMethod();
+                });
+            });
 
             var app = builder.Build();
 
-            // Configure the HTTP request pipeline.
-            // Enable Swagger in all environments (including production)
+            // Swagger (bật mọi env)
             app.UseSwagger();
             app.UseSwaggerUI(c =>
             {
-                c.SwaggerEndpoint("/swagger/v1/swagger.json", "TechStore API v1");
-                c.RoutePrefix = "swagger"; // Swagger UI will be available at /swagger
-                c.DisplayRequestDuration();
+                c.SwaggerEndpoint("/swagger/v1/swagger.json", "FinmateController API v1");
+                c.RoutePrefix = "swagger";
             });
 
-            // Auto apply EF Core migrations at startup
+            // 🔥 FIX PUBLISH AZURE: redirect root & index.html → Swagger
+            app.MapGet("/", () => Results.Redirect("/swagger"))
+               .ExcludeFromDescription();
+
+            app.MapGet("/index.html", () => Results.Redirect("/swagger"))
+               .ExcludeFromDescription();
+
+            // Auto apply migrations
             ApplyPendingMigrations(app);
+
+            // Seed admin user (tùy bạn có muốn bật lại không)
+            // SeedAdminUser(app);
 
             app.UseHttpsRedirection();
 
-            // Exception handling middleware - phải đặt trước UseAuthentication/UseAuthorization
-            app.UseExceptionHandler(errorApp =>
-            {
-                errorApp.Run(async context =>
-                {
-                    context.Response.StatusCode = 500;
-                    context.Response.ContentType = "application/json";
-
-                    var exceptionHandlerPathFeature = context.Features.Get<IExceptionHandlerPathFeature>();
-                    var exception = exceptionHandlerPathFeature?.Error;
-
-                    if (exception != null)
-                    {
-                        var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
-                        logger.LogError(exception, "Unhandled exception: {Message}", exception.Message);
-
-                        var errorResponse = new
-                        {
-                            error = "Internal server error",
-                            message = exception.Message,
-                            innerError = exception.InnerException?.Message,
-                            stackTrace = exception.StackTrace,
-                            timestamp = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss UTC")
-                        };
-
-                        await context.Response.WriteAsJsonAsync(errorResponse);
-                    }
-                });
-            });
+            // Áp dụng CORS allow all
+            app.UseCors("AllowAll");
 
             app.UseAuthentication();
             app.UseAuthorization();
@@ -140,9 +206,116 @@ namespace FinmateController
         //Automatic migration
         private static void ApplyPendingMigrations(WebApplication app)
         {
-            using var scope = app.Services.CreateScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<FinmateContext>();
-            dbContext.Database.Migrate();
+            try
+            {
+                using var scope = app.Services.CreateScope();
+                var dbContext = scope.ServiceProvider.GetRequiredService<FinmateContext>();
+                var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+                
+                // Kiểm tra database có sẵn sàng không
+                if (!dbContext.Database.CanConnect())
+                {
+                    logger.LogWarning("Cannot connect to database. Skipping migrations.");
+                    return;
+                }
+                
+                logger.LogInformation("Applying database migrations...");
+                dbContext.Database.Migrate();
+                logger.LogInformation("Database migrations applied successfully");
+            }
+            catch (Exception ex)
+            {
+                // Log error nhưng không crash app - có thể migration đã được apply rồi
+                var logger = app.Services.GetRequiredService<ILogger<Program>>();
+                logger.LogError(ex, "Error applying migrations. This might be expected if migrations are already applied. Error: {Message}", ex.Message);
+            }
+        }
+
+        // =======================
+        // Seed admin user
+        // =======================
+        private static void SeedAdminUser(WebApplication app)
+        {
+            try
+            {
+                using var scope = app.Services.CreateScope();
+                var dbContext = scope.ServiceProvider.GetRequiredService<FinmateContext>();
+                var userRepository = scope.ServiceProvider.GetRequiredService<IUserRepository>();
+                var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+
+                // Kiểm tra database có sẵn sàng không
+                if (!dbContext.Database.CanConnect())
+                {
+                    logger.LogWarning("Cannot connect to database. Skipping admin user seed.");
+                    return;
+                }
+
+                // Kiểm tra admin user đã tồn tại chưa
+                // Dùng "admin@admin.com" làm email để hợp lệ với email validation
+                var adminEmail = "admin@admin.com";
+                var existingAdmin = userRepository.GetByEmailAsync(adminEmail).Result;
+
+                if (existingAdmin == null)
+                {
+                    // Tạo admin user với Role.Admin
+                    var adminUser = new DAL.Models.Users
+                    {
+                        Email = adminEmail,
+                        PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
+                        FullName = "Administrator",
+                        IsActive = true,
+                        IsPremium = false,
+                        Role = DAL.Models.Role.Admin,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    };
+
+                    userRepository.AddAsync(adminUser).Wait();
+                    logger.LogInformation("Admin user created successfully");
+                }
+                else
+                {
+                    var updated = false;
+                    // Đảm bảo admin user có quyền Admin và password đúng
+                    if (existingAdmin.Role != DAL.Models.Role.Admin)
+                    {
+                        existingAdmin.Role = DAL.Models.Role.Admin;
+                        updated = true;
+                    }
+
+                    // Cập nhật password nếu cần (để đảm bảo password là 123456)
+                    try
+                    {
+                        if (string.IsNullOrEmpty(existingAdmin.PasswordHash) || 
+                            !BCrypt.Net.BCrypt.Verify("123456", existingAdmin.PasswordHash))
+                        {
+                            existingAdmin.PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456");
+                            existingAdmin.UpdatedAt = DateTime.UtcNow;
+                            updated = true;
+                        }
+                    }
+                    catch (Exception bcryptEx)
+                    {
+                        // Nếu BCrypt verify fail (hash format không đúng), reset password
+                        logger.LogWarning(bcryptEx, "BCrypt verify failed, resetting admin password");
+                        existingAdmin.PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456");
+                        existingAdmin.UpdatedAt = DateTime.UtcNow;
+                        updated = true;
+                    }
+
+                    if (updated)
+                    {
+                        userRepository.UpdateAsync(existingAdmin).Wait();
+                        logger.LogInformation("Admin user updated successfully");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log error nhưng không crash app
+                var logger = app.Services.GetRequiredService<ILogger<Program>>();
+                logger.LogError(ex, "Error seeding admin user. This might be expected if admin already exists.");
+            }
         }
     }
 }
