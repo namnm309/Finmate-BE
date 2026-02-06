@@ -12,7 +12,9 @@ namespace FinmateController.Controllers
         private readonly AccountTypeService _accountTypeService;
         private readonly ILogger<AccountTypeController> _logger;
 
-        public AccountTypeController(AccountTypeService accountTypeService, ILogger<AccountTypeController> logger)
+        public AccountTypeController(
+            AccountTypeService accountTypeService,
+            ILogger<AccountTypeController> logger)
         {
             _accountTypeService = accountTypeService;
             _logger = logger;
@@ -32,7 +34,7 @@ namespace FinmateController.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting account types");
-                return StatusCode(500, new { error = "Internal server error" });
+                return StatusCode(500, new { error = ex.Message });
             }
         }
 
@@ -54,7 +56,7 @@ namespace FinmateController.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting account type {Id}", id);
-                return StatusCode(500, new { error = "Internal server error" });
+                return StatusCode(500, new { error = ex.Message });
             }
         }
     }

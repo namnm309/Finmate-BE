@@ -12,7 +12,9 @@ namespace FinmateController.Controllers
         private readonly CurrencyService _currencyService;
         private readonly ILogger<CurrencyController> _logger;
 
-        public CurrencyController(CurrencyService currencyService, ILogger<CurrencyController> logger)
+        public CurrencyController(
+            CurrencyService currencyService,
+            ILogger<CurrencyController> logger)
         {
             _currencyService = currencyService;
             _logger = logger;
@@ -32,7 +34,7 @@ namespace FinmateController.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting currencies");
-                return StatusCode(500, new { error = "Internal server error" });
+                return StatusCode(500, new { error = ex.Message });
             }
         }
 
@@ -54,7 +56,7 @@ namespace FinmateController.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting currency {Id}", id);
-                return StatusCode(500, new { error = "Internal server error" });
+                return StatusCode(500, new { error = ex.Message });
             }
         }
 
@@ -76,7 +78,7 @@ namespace FinmateController.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting currency by code {Code}", code);
-                return StatusCode(500, new { error = "Internal server error" });
+                return StatusCode(500, new { error = ex.Message });
             }
         }
     }

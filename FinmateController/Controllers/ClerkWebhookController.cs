@@ -162,29 +162,12 @@ namespace FinmateController.Controllers
 
                 _logger.LogInformation("Processing user.created event for Clerk ID: {ClerkId}", data.Id);
 
-                // Kiểm tra xem user đã tồn tại chưa
-                var existingUser = await _userService.GetUserByClerkIdAsync(data.Id);
+                await _userService.UpsertUserFromWebhookAsync(data);
 
-                if (existingUser != null)
-                {
-                    _logger.LogInformation("User with Clerk ID {ClerkId} already exists", data.Id);
-                    return;
-                }
-
-                // Lấy email từ email addresses (lấy email đầu tiên đã verified hoặc email đầu tiên)
                 var email = data.EmailAddresses?.FirstOrDefault(e => e.IsVerified)?.EmailAddress
                     ?? data.EmailAddresses?.FirstOrDefault()?.EmailAddress
                     ?? string.Empty;
-
-                if (string.IsNullOrEmpty(email))
-                {
-                    _logger.LogWarning("User created event missing email for Clerk ID {ClerkId}, attempting to sync anyway", data.Id);
-                }
-
-                // Tạo user mới thông qua UserService
-                var newUser = await _userService.CreateUserFromWebhookAsync(data);
-
-                _logger.LogInformation("Successfully created user with Clerk ID {ClerkId} and email {Email}", data.Id, email);
+                _logger.LogInformation("Successfully processed user.created for Clerk ID {ClerkId} and email {Email}", data.Id, email);
             }
             catch (Exception ex)
             {
@@ -257,53 +240,25 @@ namespace FinmateController.Controllers
         {
             try
             {
-                // Lấy user ID từ UserId hoặc từ User object
                 var userId = data.UserId ?? data.User?.Id;
-                
                 if (string.IsNullOrEmpty(userId))
                 {
                     _logger.LogWarning("Session created event missing user ID");
                     return;
                 }
 
-                // Kiểm tra xem user đã tồn tại trong database chưa
-                var existingUser = await _userService.GetUserByClerkIdAsync(userId);
-
-                if (existingUser != null)
-                {
-                    _logger.LogInformation("User with Clerk ID {ClerkId} already exists, updating from session", userId);
-                    
-                    // Vẫn cập nhật thông tin user nếu có thay đổi
-                    if (data.User != null)
-                    {
-                        await _userService.UpdateUserFromWebhookAsync(data.User);
-                    }
-                    return;
-                }
-
-                // Nếu chưa có, tạo user mới từ User object hoặc từ data
                 ClerkWebhookData userData = data.User ?? data;
-                
-                // Đảm bảo có user ID
                 if (string.IsNullOrEmpty(userData.Id))
                 {
                     userData.Id = userId;
                 }
 
-                // Lấy email từ email addresses
+                await _userService.UpsertUserFromWebhookAsync(userData);
+
                 var email = userData.EmailAddresses?.FirstOrDefault(e => e.IsVerified)?.EmailAddress
                     ?? userData.EmailAddresses?.FirstOrDefault()?.EmailAddress
                     ?? string.Empty;
-
-                if (string.IsNullOrEmpty(email))
-                {
-                    _logger.LogWarning("Session created event missing email for Clerk ID {ClerkId}, attempting to sync anyway", userId);
-                }
-
-                // Tạo user mới thông qua UserService
-                await _userService.CreateUserFromWebhookAsync(userData);
-
-                _logger.LogInformation("Created user from session.created event with Clerk ID {ClerkId} and email {Email}", userId, email);
+                _logger.LogInformation("Successfully processed session.created for Clerk ID {ClerkId} and email {Email}", userId, email);
             }
             catch (Exception ex)
             {

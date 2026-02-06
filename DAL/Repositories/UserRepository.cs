@@ -31,6 +31,13 @@ namespace DAL.Repositories
                 .FirstOrDefaultAsync(u => u.Email == email);
         }
 
+        public async Task<Users?> GetByEmailNormalizedAsync(string normalizedEmail)
+        {
+            if (string.IsNullOrWhiteSpace(normalizedEmail)) return null;
+            return await _context.Users
+                .FirstOrDefaultAsync(u => u.Email != null && u.Email.Trim().ToLower() == normalizedEmail);
+        }
+
         public async Task<Users> AddAsync(Users user)
         {
             _context.Users.Add(user);

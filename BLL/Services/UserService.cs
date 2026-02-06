@@ -127,21 +127,39 @@ namespace BLL.Services
         }
 
         /// <summary>
+        /// Lấy email từ webhook data; nếu webhook không có thì gọi Clerk Backend API để lấy user (email).
+        /// Webhook Clerk có thể không gửi kèm email_addresses đầy đủ nên cần fallback API.
+        /// </summary>
+        private async Task<string?> GetEmailFromWebhookOrClerkApiAsync(ClerkWebhookData webhookData)
+        {
+            var email = webhookData.EmailAddresses?.FirstOrDefault(e => e.IsVerified)?.EmailAddress
+                ?? webhookData.EmailAddresses?.FirstOrDefault()?.EmailAddress;
+            if (!string.IsNullOrWhiteSpace(email))
+                return email;
+
+            if (string.IsNullOrEmpty(webhookData.Id))
+                return null;
+
+            var clerkUser = await _clerkService.GetUserByIdAsync(webhookData.Id);
+            email = clerkUser?.GetPrimaryEmail();
+            if (!string.IsNullOrWhiteSpace(email))
+                _logger.LogInformation("Retrieved email from Clerk API for ClerkId {ClerkId}: {Email}", webhookData.Id, email);
+            return string.IsNullOrWhiteSpace(email) ? null : email;
+        }
+
+        /// <summary>
         /// Tạo user từ Clerk webhook data
         /// </summary>
         public async Task<Users> CreateUserFromWebhookAsync(ClerkWebhookData webhookData)
         {
-            // Lấy email từ email addresses (lấy email đầu tiên đã verified hoặc email đầu tiên)
-            var email = webhookData.EmailAddresses?.FirstOrDefault(e => e.IsVerified)?.EmailAddress
-                ?? webhookData.EmailAddresses?.FirstOrDefault()?.EmailAddress
-                ?? string.Empty;
+            var email = await GetEmailFromWebhookOrClerkApiAsync(webhookData);
 
-            // Đảm bảo Email không bao giờ empty string - dùng placeholder nếu không có
+            // Chỉ dùng placeholder khi thật sự không có email (kể cả từ Clerk API)
             if (string.IsNullOrWhiteSpace(email))
             {
                 var clerkUserId = webhookData.Id ?? Guid.NewGuid().ToString();
                 email = $"user_{clerkUserId.Replace("user_", "")}@placeholder.local";
-                _logger.LogWarning("No email found in webhook data for ClerkId: {ClerkId}, using placeholder: {Email}", 
+                _logger.LogWarning("No email in webhook or Clerk API for ClerkId: {ClerkId}, using placeholder: {Email}", 
                     clerkUserId, email);
             }
 
@@ -376,6 +394,96 @@ namespace BLL.Services
 
             await _userRepository.UpdateAsync(user);
             return true;
+        }
+
+        /// <summary>
+        /// Chuẩn hóa email để tra cứu (trim, lowercase). Trả về null nếu null/empty.
+        /// </summary>
+        private static string? NormalizeEmail(string? email)
+        {
+            if (string.IsNullOrWhiteSpace(email)) return null;
+            return email.Trim().ToLowerInvariant();
+        }
+
+        /// <summary>
+        /// Email placeholder từ webhook (không dùng để gộp tài khoản theo email).
+        /// </summary>
+        private static bool IsPlaceholderEmail(string? email)
+        {
+            return !string.IsNullOrEmpty(email) &&
+                   email.Trim().EndsWith("@placeholder.local", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Cập nhật bản ghi user đã tồn tại bằng dữ liệu webhook (link ClerkId mới, cập nhật thông tin).
+        /// Không thay đổi Id, CreatedAt; không ghi đè PasswordHash nếu user đã có.
+        /// </summary>
+        public async Task<UserResponseDto?> UpdateExistingUserFromWebhookAsync(Users existingUser, ClerkWebhookData webhookData)
+        {
+            existingUser.ClerkUserId = webhookData.Id ?? existingUser.ClerkUserId;
+
+            var email = await GetEmailFromWebhookOrClerkApiAsync(webhookData);
+            if (!string.IsNullOrWhiteSpace(email) && !IsPlaceholderEmail(email))
+            {
+                existingUser.Email = email;
+            }
+
+            var fullName = $"{webhookData.FirstName ?? ""} {webhookData.LastName ?? ""}".Trim();
+            if (!string.IsNullOrEmpty(fullName))
+            {
+                existingUser.FullName = fullName;
+            }
+
+            existingUser.PhoneNumber = webhookData.PhoneNumbers?.FirstOrDefault()?.PhoneNumber ?? existingUser.PhoneNumber ?? "";
+            existingUser.AvatarUrl = webhookData.ImageUrl ?? existingUser.AvatarUrl ?? "";
+            existingUser.UpdatedAt = webhookData.GetUpdatedAtDateTime() ?? DateTime.UtcNow;
+            existingUser.LastLoginAt = webhookData.GetLastSignInAtDateTime() ?? existingUser.LastLoginAt;
+
+            var updatedUser = await _userRepository.UpdateAsync(existingUser);
+            return MapToDto(updatedUser);
+        }
+
+        /// <summary>
+        /// Upsert user từ webhook: nếu đã có theo ClerkId thì cập nhật; nếu chưa có thì tìm theo email,
+        /// nếu có user cùng email thì cập nhật và gán ClerkUserId mới; ngược lại tạo mới.
+        /// </summary>
+        public async Task<UserResponseDto?> UpsertUserFromWebhookAsync(ClerkWebhookData webhookData)
+        {
+            if (string.IsNullOrEmpty(webhookData.Id))
+            {
+                _logger.LogWarning("UpsertUserFromWebhookAsync: webhook data missing Id");
+                return null;
+            }
+
+            var existingByClerkId = await _userRepository.GetByClerkUserIdAsync(webhookData.Id);
+            if (existingByClerkId != null)
+            {
+                var updated = await UpdateUserFromWebhookAsync(webhookData);
+                _logger.LogInformation("UpsertUserFromWebhookAsync: updated existing user by ClerkId {ClerkId}", webhookData.Id);
+                return updated;
+            }
+
+            var email = await GetEmailFromWebhookOrClerkApiAsync(webhookData);
+            var normalizedEmail = NormalizeEmail(email);
+
+            if (string.IsNullOrEmpty(normalizedEmail) || (email != null && IsPlaceholderEmail(email)))
+            {
+                var newUser = await CreateUserFromWebhookAsync(webhookData);
+                _logger.LogInformation("UpsertUserFromWebhookAsync: created new user (no real email) with ClerkId {ClerkId}", webhookData.Id);
+                return MapToDto(newUser);
+            }
+
+            var existingByEmail = await _userRepository.GetByEmailNormalizedAsync(normalizedEmail);
+            if (existingByEmail != null)
+            {
+                var updated = await UpdateExistingUserFromWebhookAsync(existingByEmail, webhookData);
+                _logger.LogInformation("UpsertUserFromWebhookAsync: linked existing user by email {Email} to ClerkId {ClerkId}", normalizedEmail, webhookData.Id);
+                return updated;
+            }
+
+            var created = await CreateUserFromWebhookAsync(webhookData);
+            _logger.LogInformation("UpsertUserFromWebhookAsync: created new user with ClerkId {ClerkId}, email {Email}", webhookData.Id, normalizedEmail);
+            return MapToDto(created);
         }
 
         /// <summary>

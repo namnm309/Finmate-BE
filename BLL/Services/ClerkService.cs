@@ -206,6 +206,13 @@ namespace BLL.Services
         [JsonPropertyName("email_address")]
         public string? EmailAddress { get; set; }
         
+        /// <summary>GET /users/:id trả về email_addresses (mảng), không phải email_address. Dùng GetPrimaryEmail() để lấy email.</summary>
+        [JsonPropertyName("email_addresses")]
+        public List<ClerkEmailAddress>? EmailAddresses { get; set; }
+        
+        [JsonPropertyName("primary_email_address_id")]
+        public string? PrimaryEmailAddressId { get; set; }
+        
         [JsonPropertyName("phone_number")]
         public string? PhoneNumber { get; set; }
         
@@ -220,6 +227,12 @@ namespace BLL.Services
         
         [JsonPropertyName("last_sign_in_at")]
         public long? LastSignInAt { get; set; }
+        
+        /// <summary>Lấy primary email: từ EmailAddress hoặc từ mảng email_addresses (primary theo id rồi phần tử đầu).</summary>
+        public string? GetPrimaryEmail() =>
+            EmailAddress
+            ?? EmailAddresses?.FirstOrDefault(e => e.Id == PrimaryEmailAddressId)?.EmailAddress
+            ?? EmailAddresses?.FirstOrDefault()?.EmailAddress;
         
         // Helper methods để convert timestamp
         public DateTime? GetCreatedAtDateTime() => ClerkService.ConvertFromUnixTimestamp(CreatedAt);

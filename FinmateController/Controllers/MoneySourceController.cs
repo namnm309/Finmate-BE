@@ -59,7 +59,7 @@ namespace FinmateController.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting money sources");
-                return StatusCode(500, new { error = "Internal server error" });
+                return StatusCode(500, new { error = ex.Message });
             }
         }
 
@@ -119,7 +119,7 @@ namespace FinmateController.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting grouped money sources");
-                return StatusCode(500, new { error = "Internal server error" });
+                return StatusCode(500, new { error = ex.Message });
             }
         }
 
@@ -147,7 +147,7 @@ namespace FinmateController.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting money source {Id}", id);
-                return StatusCode(500, new { error = "Internal server error" });
+                return StatusCode(500, new { error = ex.Message });
             }
         }
 
@@ -155,7 +155,7 @@ namespace FinmateController.Controllers
         /// Tạo nguồn tiền mới
         /// </summary>
         [HttpPost]
-        public async Task<IActionResult> Create([FromBody] CreateMoneySourceDto request)
+        public async Task<IActionResult> Create([FromBody] CreateMoneySourceDto? request)
         {
             try
             {
@@ -163,6 +163,11 @@ namespace FinmateController.Controllers
                 if (!userId.HasValue)
                 {
                     return Unauthorized(new { error = "Invalid user" });
+                }
+
+                if (request == null)
+                {
+                    return BadRequest(new { error = "Request body is required (name, accountTypeId, ...)" });
                 }
 
                 if (!ModelState.IsValid)
@@ -180,7 +185,7 @@ namespace FinmateController.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error creating money source");
-                return StatusCode(500, new { error = "Internal server error" });
+                return StatusCode(500, new { error = ex.Message });
             }
         }
 
@@ -212,7 +217,7 @@ namespace FinmateController.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error updating money source {Id}", id);
-                return StatusCode(500, new { error = "Internal server error" });
+                return StatusCode(500, new { error = ex.Message });
             }
         }
 
@@ -240,7 +245,7 @@ namespace FinmateController.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error deleting money source {Id}", id);
-                return StatusCode(500, new { error = "Internal server error" });
+                return StatusCode(500, new { error = ex.Message });
             }
         }
     }
