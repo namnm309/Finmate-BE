@@ -104,8 +104,12 @@ namespace BLL.Services
 
             var created = await _moneySourceRepository.AddAsync(moneySource);
             
-            // Load AccountType for mapping
-            created.AccountType = accountType;
+            // Reload với navigation property để đảm bảo AccountType được load đúng cách
+            created = await _moneySourceRepository.GetByIdWithAccountTypeAsync(created.Id);
+            if (created == null)
+            {
+                throw new InvalidOperationException("Failed to create money source");
+            }
             
             _logger.LogInformation("Created MoneySource {Id} for user {UserId}", created.Id, userId);
             
@@ -148,9 +152,11 @@ namespace BLL.Services
                 moneySource.Color = request.Color;
             }
 
+            // Luôn cập nhật số dư khi client gửi lên (kể cả 0)
             if (request.Balance.HasValue)
             {
                 moneySource.Balance = request.Balance.Value;
+                _logger.LogInformation("MoneySource {Id} balance set to {Balance}", id, request.Balance.Value);
             }
 
             if (!string.IsNullOrWhiteSpace(request.Currency))

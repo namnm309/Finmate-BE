@@ -6,7 +6,7 @@ namespace FinmateController.Controllers
 {
     [ApiController]
     [Route("api/account-types")]
-    [Authorize]
+    [Authorize(AuthenticationSchemes = "Clerk,Basic")]
     public class AccountTypeController : ControllerBase
     {
         private readonly AccountTypeService _accountTypeService;
@@ -33,8 +33,13 @@ namespace FinmateController.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting account types");
-                return StatusCode(500, new { error = ex.Message });
+                _logger.LogError(ex, "Error getting account types. Message: {Message}, Inner: {Inner}",
+                    ex.Message, ex.InnerException?.Message);
+                return StatusCode(500, new
+                {
+                    error = ex.Message,
+                    message = ex.InnerException?.Message ?? ex.Message,
+                });
             }
         }
 
@@ -55,8 +60,8 @@ namespace FinmateController.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting account type {Id}", id);
-                return StatusCode(500, new { error = ex.Message });
+                _logger.LogError(ex, "Error getting account type {Id}. Inner: {Inner}", id, ex.InnerException?.Message);
+                return StatusCode(500, new { error = ex.Message, message = ex.InnerException?.Message ?? ex.Message });
             }
         }
     }

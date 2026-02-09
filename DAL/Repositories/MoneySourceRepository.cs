@@ -48,9 +48,17 @@ namespace DAL.Repositories
 
         public async Task<MoneySource> AddAsync(MoneySource moneySource)
         {
-            _context.MoneySources.Add(moneySource);
-            await _context.SaveChangesAsync();
-            return moneySource;
+            try
+            {
+                _context.MoneySources.Add(moneySource);
+                await _context.SaveChangesAsync();
+                return moneySource;
+            }
+            catch (DbUpdateException)
+            {
+                // Re-throw để được xử lý ở service/controller level với logging chi tiết
+                throw;
+            }
         }
 
         public async Task<MoneySource> UpdateAsync(MoneySource moneySource)

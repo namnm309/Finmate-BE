@@ -6,7 +6,7 @@ namespace FinmateController.Controllers
 {
     [ApiController]
     [Route("api/currencies")]
-    [Authorize]
+    [Authorize(AuthenticationSchemes = "Clerk,Basic")]
     public class CurrencyController : ControllerBase
     {
         private readonly CurrencyService _currencyService;
@@ -33,8 +33,13 @@ namespace FinmateController.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting currencies");
-                return StatusCode(500, new { error = ex.Message });
+                _logger.LogError(ex, "Error getting currencies. Message: {Message}, Inner: {Inner}",
+                    ex.Message, ex.InnerException?.Message);
+                return StatusCode(500, new
+                {
+                    error = ex.Message,
+                    message = ex.InnerException?.Message ?? ex.Message,
+                });
             }
         }
 
@@ -55,8 +60,8 @@ namespace FinmateController.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting currency {Id}", id);
-                return StatusCode(500, new { error = ex.Message });
+                _logger.LogError(ex, "Error getting currency {Id}. Inner: {Inner}", id, ex.InnerException?.Message);
+                return StatusCode(500, new { error = ex.Message, message = ex.InnerException?.Message ?? ex.Message });
             }
         }
 
@@ -77,8 +82,8 @@ namespace FinmateController.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting currency by code {Code}", code);
-                return StatusCode(500, new { error = ex.Message });
+                _logger.LogError(ex, "Error getting currency by code {Code}. Inner: {Inner}", code, ex.InnerException?.Message);
+                return StatusCode(500, new { error = ex.Message, message = ex.InnerException?.Message ?? ex.Message });
             }
         }
     }

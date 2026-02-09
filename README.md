@@ -779,3 +779,182 @@ This project is licensed under the MIT License.
 ---
 
 **Happy Coding! 🚀**
+
+---
+
+## 9. Testing
+
+### 9.1 Unit Tests
+
+```bash
+# Tạo project test
+dotnet new xunit -n Finmate.Tests
+cd Finmate.Tests
+
+# Add references
+dotnet add reference ../BLL/BLL.csproj
+dotnet add reference ../DAL/DAL.csproj
+
+# Add packages
+dotnet add package Moq
+dotnet add package FluentAssertions
+
+# Chạy tests
+dotnet test
+```
+
+**Example test:**
+```csharp
+public class UserServiceTests
+{
+    [Fact]
+    public async Task GetUserByClerkIdAsync_ShouldReturnUser_WhenUserExists()
+    {
+        // Arrange
+        var mockRepo = new Mock<IUserRepository>();
+        var mockClerk = new Mock<ClerkService>();
+        var mockLogger = new Mock<ILogger<UserService>>();
+        
+        var service = new UserService(mockRepo.Object, mockClerk.Object, mockLogger.Object);
+        
+        // Act
+        var result = await service.GetUserByClerkIdAsync("user_123");
+        
+        // Assert
+        result.Should().NotBeNull();
+    }
+}
+```
+
+### 9.2 Integration Tests
+
+```bash
+# Postman Collection
+# Export từ Swagger
+curl http://localhost:5000/swagger/v1/swagger.json > finmate-api.json
+
+# Import vào Postman
+# File → Import → Upload finmate-api.json
+```
+
+---
+
+## 10. Deployment
+
+### 10.1 Production Checklist
+
+- [ ] **Security:**
+  - [ ] Enable webhook signature verification
+  - [ ] Use environment variables for secrets
+  - [ ] Enable HTTPS only
+  - [ ] Configure CORS properly
+  - [ ] Enable rate limiting
+  - [ ] Remove verbose error messages
+
+- [ ] **Database:**
+  - [ ] Backup database
+  - [ ] Run migrations
+  - [ ] Set connection pooling
+  - [ ] Configure indexes
+
+- [ ] **Monitoring:**
+  - [ ] Setup logging (Serilog, Application Insights)
+  - [ ] Configure health checks
+  - [ ] Setup alerts
+
+- [ ] **Performance:**
+  - [ ] Enable response caching
+  - [ ] Configure Redis (if needed)
+  - [ ] Optimize queries
+
+### 10.2 Environment Setup
+
+**Production appsettings.json:**
+```json
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Warning",
+      "Microsoft.AspNetCore": "Error"
+    }
+  },
+  "AllowedHosts": "yourdomain.com"
+}
+```
+
+**Enable webhook verification:**
+```csharp
+// ClerkWebhookController.cs
+// Uncomment this line:
+if (!_clerkService.VerifyWebhookSignature(body, signature))
+{
+    return Unauthorized("Invalid signature");
+}
+```
+
+---
+
+## 11. Troubleshooting
+
+### Issue: "Unable to connect to database"
+```
+Npgsql.NpgsqlException: Connection refused
+```
+**Solution:**
+- Kiểm tra connection string
+- Verify database server đang chạy
+- Check firewall/security groups
+
+### Issue: "JWT token validation failed"
+```
+401 Unauthorized
+```
+**Solution:**
+- Verify token chưa hết hạn
+- Check Clerk InstanceUrl đúng
+- Ensure `Authorization: Bearer <token>` header
+
+### Issue: "Webhook signature invalid"
+```
+401 Unauthorized: Invalid signature
+```
+**Solution:**
+- Verify WebhookSecret đúng
+- Check svix-signature header
+- Ensure payload không bị modify
+
+---
+
+## 12. Contributing
+
+Contributions are welcome! Please follow these steps:
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
+3. Commit changes: `git commit -m 'Add amazing feature'`
+4. Push to branch: `git push origin feature/amazing-feature`
+5. Open a Pull Request
+
+**Coding Standards:**
+- Follow C# coding conventions
+- Write unit tests
+- Update documentation
+- Add XML comments
+
+---
+
+## 13. License
+
+This project is licensed under the MIT License.
+
+---
+
+## 🎯 Quick Start Checklist
+
+- [ ] Clone repository
+- [ ] Install .NET 8 SDK
+- [ ] Create Clerk application
+- [ ] Setup Supabase/PostgreSQL database
+- [ ] Update `appsettings.json` with keys
+- [ ] Run migrations: `dotnet ef database update`
+- [ ] Start API: `dotnet run`

@@ -73,13 +73,18 @@ namespace BLL.Services
             var fullName = $"{clerkUser.FirstName ?? ""} {clerkUser.LastName ?? ""}".Trim();
             if (string.IsNullOrEmpty(fullName))
             {
-                fullName = clerkUser.EmailAddress?.Split('@')[0] ?? "User";
+                fullName = clerkUser.GetPrimaryEmail()?.Split('@')[0] ?? "User";
             }
 
             // Đảm bảo Email không bao giờ empty string - dùng placeholder nếu không có
-            var email = string.IsNullOrWhiteSpace(clerkUser.EmailAddress)
-                ? $"user_{clerkUser.Id?.Replace("user_", "") ?? Guid.NewGuid().ToString()}@placeholder.local"
-                : clerkUser.EmailAddress;
+            var email = clerkUser.GetPrimaryEmail();
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                var clerkUserId = clerkUser.Id ?? Guid.NewGuid().ToString();
+                email = $"user_{clerkUserId.Replace("user_", "")}@placeholder.local";
+                _logger.LogWarning("No email found for ClerkId: {ClerkId}, using placeholder: {Email}", 
+                    clerkUserId, email);
+            }
 
             var user = new Users
             {
@@ -226,7 +231,11 @@ namespace BLL.Services
                 return null;
             }
 
-            user.Email = clerkUser.EmailAddress ?? user.Email;
+            var primaryEmail = clerkUser.GetPrimaryEmail();
+            if (!string.IsNullOrWhiteSpace(primaryEmail))
+            {
+                user.Email = primaryEmail;
+            }
             
             // Đảm bảo FullName không rỗng
             var fullName = $"{clerkUser.FirstName ?? ""} {clerkUser.LastName ?? ""}".Trim();

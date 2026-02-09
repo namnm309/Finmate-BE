@@ -2,13 +2,14 @@ using BLL.DTOs.Request;
 using BLL.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 
 namespace FinmateController.Controllers
 {
     [ApiController]
     [Route("api/money-sources")]
-    [Authorize]
+    [Authorize(AuthenticationSchemes = "Clerk,Basic")]
     public class MoneySourceController : ControllerBase
     {
         private readonly MoneySourceService _moneySourceService;
@@ -27,16 +28,25 @@ namespace FinmateController.Controllers
 
         private async Task<Guid?> GetCurrentUserIdAsync()
         {
-            var clerkUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                ?? User.FindFirst("sub")?.Value;
+            var claimValue = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                ?? User.FindFirst("sub")?.Value
+                ?? User.FindFirst("userId")?.Value;
 
-            if (string.IsNullOrEmpty(clerkUserId))
+            if (string.IsNullOrEmpty(claimValue))
             {
                 return null;
             }
 
-            var user = await _userService.GetUserByClerkIdAsync(clerkUserId);
-            return user?.Id;
+            // Token Basic: NameIdentifier = user.Id (Guid). Token Clerk: sub = clerk user id (user_xxx).
+            if (Guid.TryParse(claimValue, out var userId))
+            {
+                var user = await _userService.GetUserByIdAsync(userId);
+                return user?.Id;
+            }
+
+            // Clerk token: lấy hoặc tạo user từ Clerk
+            var userFromClerk = await _userService.GetOrCreateUserFromClerkAsync(claimValue);
+            return userFromClerk?.Id;
         }
 
         /// <summary>
@@ -157,9 +167,10 @@ namespace FinmateController.Controllers
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] CreateMoneySourceDto? request)
         {
+            Guid? userId = null;
             try
             {
-                var userId = await GetCurrentUserIdAsync();
+                userId = await GetCurrentUserIdAsync();
                 if (!userId.HasValue)
                 {
                     return Unauthorized(new { error = "Invalid user" });
@@ -182,9 +193,23 @@ namespace FinmateController.Controllers
             {
                 return BadRequest(new { error = ex.Message });
             }
+            catch (DbUpdateException dbEx)
+            {
+                _logger.LogError(dbEx, "Database error creating money source. UserId: {UserId}, Request: {@Request}, InnerException: {InnerException}", 
+                    userId, request, dbEx.InnerException?.Message);
+                
+                // Kiểm tra foreign key constraint violation
+                if (dbEx.InnerException?.Message?.Contains("foreign key", StringComparison.OrdinalIgnoreCase) == true)
+                {
+                    return BadRequest(new { error = "Invalid AccountTypeId or UserId", message = dbEx.InnerException.Message });
+                }
+                
+                return StatusCode(500, new { error = "Database error", message = dbEx.InnerException?.Message ?? dbEx.Message });
+            }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error creating money source");
+                _logger.LogError(ex, "Error creating money source. UserId: {UserId}, Request: {@Request}, StackTrace: {StackTrace}", 
+                    userId, request, ex.StackTrace);
                 return StatusCode(500, new { error = ex.Message });
             }
         }

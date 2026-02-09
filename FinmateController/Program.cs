@@ -4,9 +4,11 @@ using BLL.Services;
 using DAL.Data;
 using DAL.Repositories;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using FinmateController.Hubs;
 
 namespace FinmateController
 {
@@ -21,6 +23,9 @@ namespace FinmateController
             {
                 options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
             });
+
+            // SignalR
+            builder.Services.AddSignalR();
 
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen(c =>
@@ -149,6 +154,8 @@ namespace FinmateController
             // Services
             builder.Services.AddScoped<UserService>();
             builder.Services.AddScoped<AuthService>(); // basic register/login service
+            builder.Services.AddScoped<AccountTypeService>();
+            builder.Services.AddScoped<CurrencyService>();
             builder.Services.AddScoped<MoneySourceService>();
             builder.Services.AddScoped<TransactionService>();
             builder.Services.AddScoped<TransactionTypeService>();
@@ -199,6 +206,7 @@ namespace FinmateController
             app.UseAuthorization();
 
             app.MapControllers();
+            app.MapHub<TransactionHub>("/hubs/transactions");
 
             app.Run();
         }

@@ -185,7 +185,7 @@ namespace FinmateController.Controllers
                 var response = new ClerkUserResponseDto
                 {
                     Id = clerkUser.Id,
-                    Email = clerkUser.EmailAddress,
+                    Email = clerkUser.GetPrimaryEmail(),
                     FirstName = clerkUser.FirstName,
                     LastName = clerkUser.LastName,
                     PhoneNumber = clerkUser.PhoneNumber,
