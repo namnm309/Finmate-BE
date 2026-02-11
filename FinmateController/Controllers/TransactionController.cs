@@ -1,7 +1,9 @@
 using BLL.DTOs.Request;
 using BLL.Services;
+using FinmateController.Hubs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using System.Security.Claims;
 
 namespace FinmateController.Controllers
@@ -14,15 +16,18 @@ namespace FinmateController.Controllers
         private readonly TransactionService _transactionService;
         private readonly UserService _userService;
         private readonly ILogger<TransactionController> _logger;
+        private readonly IHubContext<TransactionHub> _transactionHubContext;
 
         public TransactionController(
             TransactionService transactionService,
             UserService userService,
-            ILogger<TransactionController> logger)
+            ILogger<TransactionController> logger,
+            IHubContext<TransactionHub> transactionHubContext)
         {
             _transactionService = transactionService;
             _userService = userService;
             _logger = logger;
+            _transactionHubContext = transactionHubContext;
         }
 
         private async Task<Guid?> GetCurrentUserIdAsync()
@@ -132,6 +137,16 @@ namespace FinmateController.Controllers
                 }
 
                 var transaction = await _transactionService.CreateAsync(userId.Value, request);
+
+                // Notify SignalR clients for this user
+                await _transactionHubContext.Clients
+                    .Group($"user:{userId.Value}")
+                    .SendAsync("TransactionsUpdated", new
+                    {
+                        transactionId = transaction.Id,
+                        action = "created"
+                    });
+
                 return CreatedAtAction(nameof(GetById), new { id = transaction.Id }, transaction);
             }
             catch (ArgumentException ex)
@@ -164,6 +179,16 @@ namespace FinmateController.Controllers
                 {
                     return NotFound(new { error = "Transaction not found" });
                 }
+
+                // Notify SignalR clients for this user
+                await _transactionHubContext.Clients
+                    .Group($"user:{userId.Value}")
+                    .SendAsync("TransactionsUpdated", new
+                    {
+                        transactionId = transaction.Id,
+                        action = "updated"
+                    });
+
                 return Ok(transaction);
             }
             catch (ArgumentException ex)
@@ -196,6 +221,16 @@ namespace FinmateController.Controllers
                 {
                     return NotFound(new { error = "Transaction not found" });
                 }
+
+                // Notify SignalR clients for this user
+                await _transactionHubContext.Clients
+                    .Group($"user:{userId.Value}")
+                    .SendAsync("TransactionsUpdated", new
+                    {
+                        transactionId = id,
+                        action = "deleted"
+                    });
+
                 return Ok(new { message = "Transaction deleted successfully" });
             }
             catch (Exception ex)

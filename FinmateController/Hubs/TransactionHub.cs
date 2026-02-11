@@ -1,3 +1,4 @@
+using System;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using BLL.Services;
@@ -7,10 +8,6 @@ using Microsoft.Extensions.Logging;
 
 namespace FinmateController.Hubs
 {
-    /// <summary>
-    /// SignalR hub dùng để push các thay đổi giao dịch theo từng user.
-    /// Mỗi user sẽ join vào group "user:{userId}" để chỉ nhận event của chính mình.
-    /// </summary>
     [Authorize]
     public class TransactionHub : Hub
     {
@@ -37,9 +34,7 @@ namespace FinmateController.Hubs
             return user?.Id;
         }
 
-        /// <summary>
-        /// Được client gọi sau khi connect để join vào group theo user.
-        </summary>
+        // Được client gọi sau khi connect để join vào group theo user.
         public async Task JoinUserGroup()
         {
             var userId = await GetCurrentUserIdAsync();

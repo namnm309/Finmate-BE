@@ -3,8 +3,6 @@ using BLL.DTOs.Response;
 using DAL.Data;
 using DAL.Models;
 using DAL.Repositories;
-using FinmateController.Hubs;
-using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -18,7 +16,6 @@ namespace BLL.Services
         private readonly ICategoryRepository _categoryRepository;
         private readonly IContactRepository _contactRepository;
         private readonly FinmateContext _context;
-        private readonly IHubContext<TransactionHub> _transactionHubContext;
         private readonly ILogger<TransactionService> _logger;
 
         public TransactionService(
@@ -28,8 +25,7 @@ namespace BLL.Services
             ICategoryRepository categoryRepository,
             IContactRepository contactRepository,
             FinmateContext context,
-            ILogger<TransactionService> logger,
-            IHubContext<TransactionHub> transactionHubContext)
+            ILogger<TransactionService> logger)
         {
             _transactionRepository = transactionRepository;
             _transactionTypeRepository = transactionTypeRepository;
@@ -38,7 +34,6 @@ namespace BLL.Services
             _contactRepository = contactRepository;
             _context = context;
             _logger = logger;
-            _transactionHubContext = transactionHubContext;
         }
 
         public async Task<TransactionListResponseDto> GetAllByUserIdAsync(Guid userId, int page = 1, int pageSize = 20)
@@ -190,15 +185,6 @@ namespace BLL.Services
                 transaction.Category = category;
                 transaction.Contact = contact;
 
-                // Notify SignalR clients for this user
-                await _transactionHubContext.Clients
-                    .Group($"user:{userId}")
-                    .SendAsync("TransactionsUpdated", new
-                    {
-                        transactionId = transaction.Id,
-                        action = "created"
-                    });
-
                 return MapToDto(transaction);
             }
             catch (Exception ex)
@@ -347,15 +333,6 @@ namespace BLL.Services
 
                 _logger.LogInformation("Updated Transaction {Id} for user {UserId}", id, userId);
 
-                // Notify SignalR clients for this user
-                await _transactionHubContext.Clients
-                    .Group($"user:{userId}")
-                    .SendAsync("TransactionsUpdated", new
-                    {
-                        transactionId = transaction.Id,
-                        action = "updated"
-                    });
-
                 return MapToDto(transaction);
             }
             catch (Exception ex)
@@ -400,15 +377,6 @@ namespace BLL.Services
                 _logger.LogInformation(
                     "Deleted Transaction {Id} for user {UserId}. Rolled back balance: {Amount}",
                     id, userId, transaction.Amount);
-
-                // Notify SignalR clients for this user
-                await _transactionHubContext.Clients
-                    .Group($"user:{userId}")
-                    .SendAsync("TransactionsUpdated", new
-                    {
-                        transactionId = transaction.Id,
-                        action = "deleted"
-                    });
 
                 return true;
             }
