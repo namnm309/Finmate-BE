@@ -19,6 +19,8 @@ namespace DAL.Models
         [Required]
         public Guid TransactionTypeId { get; set; }
 
+        public Guid? ParentCategoryId { get; set; }
+
         [Required]
         [MaxLength(100)]
         public string Name { get; set; } = string.Empty;
@@ -36,6 +38,11 @@ namespace DAL.Models
 
         [ForeignKey("TransactionTypeId")]
         public virtual TransactionType TransactionType { get; set; } = null!;
+
+        [ForeignKey("ParentCategoryId")]
+        public virtual Category? ParentCategory { get; set; }
+
+        public virtual ICollection<Category> Children { get; set; } = new List<Category>();
 
         public virtual ICollection<Transaction> Transactions { get; set; } = new List<Transaction>();
     }

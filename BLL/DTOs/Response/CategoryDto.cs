@@ -6,6 +6,7 @@ namespace BLL.DTOs.Response
         public Guid UserId { get; set; }
         public Guid TransactionTypeId { get; set; }
         public string TransactionTypeName { get; set; } = string.Empty;
+        public Guid? ParentCategoryId { get; set; }
         public string Name { get; set; } = string.Empty;
         public string Icon { get; set; } = string.Empty;
         public bool IsActive { get; set; }

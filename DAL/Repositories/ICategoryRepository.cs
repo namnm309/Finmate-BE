@@ -8,7 +8,9 @@ namespace DAL.Repositories
         Task<IEnumerable<Category>> GetActiveByUserIdAsync(Guid userId);
         Task<IEnumerable<Category>> GetByUserIdAndTransactionTypeAsync(Guid userId, Guid transactionTypeId);
         Task<Category?> GetByIdAsync(Guid id);
-        Task<bool> ExistsByNameForUserAsync(Guid userId, string name, Guid? excludeId = null);
+        Task<bool> ExistsByNameForUserAsync(Guid userId, Guid transactionTypeId, string name, Guid? excludeId = null);
+        Task<bool> HasChildrenAsync(Guid categoryId);
+        Task<IEnumerable<Category>> GetChildrenAsync(Guid categoryId);
         Task<Category> AddAsync(Category category);
         Task AddRangeAsync(IEnumerable<Category> categories);
         Task<Category> UpdateAsync(Category category);

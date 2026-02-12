@@ -102,6 +102,8 @@ namespace DAL.Data
                     .WithOne(t => t.Category)
                     .HasForeignKey(t => t.CategoryId)
                     .OnDelete(DeleteBehavior.Restrict);
+                // Quan hệ ParentCategory - Children sẽ được cấu hình theo convention
+                // dựa trên ParentCategoryId, ParentCategory và Children trong Category model.
             });
 
             // Contact configuration

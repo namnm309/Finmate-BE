@@ -97,17 +97,46 @@ namespace BLL.Services
                 throw new ArgumentException("Invalid TransactionTypeId");
             }
 
-            // Check duplicate name
-            if (await _categoryRepository.ExistsByNameForUserAsync(userId, request.Name))
+            var normalizedName = request.Name.Trim();
+
+            // Check duplicate name (per user + transaction type, case-insensitive)
+            if (await _categoryRepository.ExistsByNameForUserAsync(userId, request.TransactionTypeId, normalizedName))
             {
                 throw new ArgumentException("Category with this name already exists");
+            }
+
+            Guid? parentCategoryId = null;
+
+            // Validate parent category (optional)
+            if (request.ParentCategoryId.HasValue)
+            {
+                var parent = await _categoryRepository.GetByIdAsync(request.ParentCategoryId.Value);
+                if (parent == null || parent.UserId != userId)
+                {
+                    throw new ArgumentException("Invalid ParentCategoryId");
+                }
+
+                // Parent must be in the same transaction type
+                if (parent.TransactionTypeId != request.TransactionTypeId)
+                {
+                    throw new ArgumentException("Parent category must have the same transaction type");
+                }
+
+                // Enforce 2-level tree: parent itself must be a root (no parent)
+                if (parent.ParentCategoryId.HasValue)
+                {
+                    throw new ArgumentException("Parent category cannot be a child category");
+                }
+
+                parentCategoryId = parent.Id;
             }
 
             var category = new Category
             {
                 UserId = userId,
                 TransactionTypeId = request.TransactionTypeId,
-                Name = request.Name,
+                ParentCategoryId = parentCategoryId,
+                Name = normalizedName,
                 Icon = request.Icon,
                 DisplayOrder = request.DisplayOrder,
                 IsActive = true,
@@ -132,6 +161,9 @@ namespace BLL.Services
                 return null;
             }
 
+            // Track final transaction type for validation & duplicate check
+            var effectiveTransactionTypeId = category.TransactionTypeId;
+
             // Update fields if provided
             if (request.TransactionTypeId.HasValue)
             {
@@ -140,18 +172,14 @@ namespace BLL.Services
                 {
                     throw new ArgumentException("Invalid TransactionTypeId");
                 }
-                category.TransactionTypeId = request.TransactionTypeId.Value;
+                effectiveTransactionTypeId = request.TransactionTypeId.Value;
+                category.TransactionTypeId = effectiveTransactionTypeId;
                 category.TransactionType = transactionType;
             }
 
             if (!string.IsNullOrWhiteSpace(request.Name))
             {
-                // Check duplicate name (exclude current category)
-                if (await _categoryRepository.ExistsByNameForUserAsync(userId, request.Name, id))
-                {
-                    throw new ArgumentException("Category with this name already exists");
-                }
-                category.Name = request.Name;
+                category.Name = request.Name.Trim();
             }
 
             if (!string.IsNullOrWhiteSpace(request.Icon))
@@ -167,6 +195,56 @@ namespace BLL.Services
             if (request.IsActive.HasValue)
             {
                 category.IsActive = request.IsActive.Value;
+            }
+
+            // Handle parent category changes (enforce 2-level tree)
+            if (request.ParentCategoryId.HasValue)
+            {
+                if (request.ParentCategoryId.Value == Guid.Empty)
+                {
+                    // Treat empty Guid as removing parent
+                    category.ParentCategoryId = null;
+                }
+                else
+                {
+                    // If category currently has children, do not allow setting a parent (would create level 3)
+                    if (await _categoryRepository.HasChildrenAsync(id))
+                    {
+                        throw new ArgumentException("Cannot set a parent for a category that has child categories");
+                    }
+
+                    var parent = await _categoryRepository.GetByIdAsync(request.ParentCategoryId.Value);
+                    if (parent == null || parent.UserId != userId)
+                    {
+                        throw new ArgumentException("Invalid ParentCategoryId");
+                    }
+
+                    // Parent must be in the same (final) transaction type
+                    if (parent.TransactionTypeId != effectiveTransactionTypeId)
+                    {
+                        throw new ArgumentException("Parent category must have the same transaction type");
+                    }
+
+                    // Enforce 2-level tree: parent itself must be a root (no parent)
+                    if (parent.ParentCategoryId.HasValue)
+                    {
+                        throw new ArgumentException("Parent category cannot be a child category");
+                    }
+
+                    // Prevent self-parenting
+                    if (parent.Id == id)
+                    {
+                        throw new ArgumentException("Category cannot be its own parent");
+                    }
+
+                    category.ParentCategoryId = parent.Id;
+                }
+            }
+
+            // Check duplicate name (exclude current category) with final TransactionType + Name
+            if (await _categoryRepository.ExistsByNameForUserAsync(userId, effectiveTransactionTypeId, category.Name, id))
+            {
+                throw new ArgumentException("Category with this name already exists");
             }
 
             category.UpdatedAt = DateTime.UtcNow;
@@ -185,6 +263,15 @@ namespace BLL.Services
             if (category == null || category.UserId != userId)
             {
                 return (false, "Category not found");
+            }
+
+            // Re-parent children to root before any delete logic
+            var children = await _categoryRepository.GetChildrenAsync(id);
+            foreach (var child in children)
+            {
+                child.ParentCategoryId = null;
+                child.UpdatedAt = DateTime.UtcNow;
+                await _categoryRepository.UpdateAsync(child);
             }
 
             // Check if category has transactions
@@ -279,6 +366,7 @@ namespace BLL.Services
                 UserId = entity.UserId,
                 TransactionTypeId = entity.TransactionTypeId,
                 TransactionTypeName = entity.TransactionType?.Name ?? string.Empty,
+                ParentCategoryId = entity.ParentCategoryId,
                 Name = entity.Name,
                 Icon = entity.Icon,
                 IsActive = entity.IsActive,

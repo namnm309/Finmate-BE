@@ -6,6 +6,8 @@ namespace BLL.DTOs.Request
     {
         public Guid? TransactionTypeId { get; set; }
 
+        public Guid? ParentCategoryId { get; set; }
+
         [MaxLength(100)]
         public string? Name { get; set; }
 

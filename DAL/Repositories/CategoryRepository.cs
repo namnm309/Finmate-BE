@@ -50,10 +50,15 @@ namespace DAL.Repositories
                 .FirstOrDefaultAsync(c => c.Id == id);
         }
 
-        public async Task<bool> ExistsByNameForUserAsync(Guid userId, string name, Guid? excludeId = null)
+        public async Task<bool> ExistsByNameForUserAsync(Guid userId, Guid transactionTypeId, string name, Guid? excludeId = null)
         {
+            var normalizedName = name.Trim().ToLower();
+
             var query = _context.Categories
-                .Where(c => c.UserId == userId && c.Name.ToLower() == name.ToLower());
+                .Where(c =>
+                    c.UserId == userId &&
+                    c.TransactionTypeId == transactionTypeId &&
+                    c.Name.ToLower() == normalizedName);
 
             if (excludeId.HasValue)
             {
@@ -61,6 +66,19 @@ namespace DAL.Repositories
             }
 
             return await query.AnyAsync();
+        }
+
+        public async Task<bool> HasChildrenAsync(Guid categoryId)
+        {
+            return await _context.Categories
+                .AnyAsync(c => c.ParentCategoryId == categoryId);
+        }
+
+        public async Task<IEnumerable<Category>> GetChildrenAsync(Guid categoryId)
+        {
+            return await _context.Categories
+                .Where(c => c.ParentCategoryId == categoryId)
+                .ToListAsync();
         }
 
         public async Task<Category> AddAsync(Category category)
