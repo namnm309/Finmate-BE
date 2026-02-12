@@ -1,5 +1,5 @@
 # Finmate Backend - Personal Finance Management API
-[![namnm309](https://img.shields.io/badge/GitHub-namn m309-181717?style=flat&logo=github&logoColor=white)](https://github.com/namnm309)
+[![namnm309](https://img.shields.io/badge/GitHub-namnm309-181717?style=flat&logo=github&logoColor=white)](https://github.com/namnm309)
 [![hienn12454](https://img.shields.io/badge/GitHub-hienn12454-181717?style=flat&logo=github&logoColor=white)](https://github.com/hienn12454)
 
 [![Deploy to Azure](https://img.shields.io/github/actions/workflow/status/namnm309/FPTU_Lab_Events/dotnet.yml?branch=main&label=Deploy&logo=azuredevops&style=flat)](https://github.com/namnm309/FPTU_Lab_Events/actions)
