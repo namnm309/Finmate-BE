@@ -1,5 +1,6 @@
 # Finmate Backend - Personal Finance Management API
 
+[![Build Status](https://img.shields.io/github/actions/workflow/status/namnm309/FPTU_Lab_Events/dotnet.yml?branch=main)](https://github.com/namnm309/FPTU_Lab_Events/actions)
 [![.NET 8](https://img.shields.io/badge/.NET-8.0-512BD4)](https://dotnet.microsoft.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-14+-336791)](https://www.postgresql.org/)
 [![Clerk](https://img.shields.io/badge/Auth-Clerk-6C47FF)](https://clerk.com/)
