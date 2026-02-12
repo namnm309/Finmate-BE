@@ -5,6 +5,9 @@
 [![.NET 8](https://img.shields.io/badge/.NET-8.0-512BD4)](https://dotnet.microsoft.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-14+-336791)](https://www.postgresql.org/)
 [![Clerk](https://img.shields.io/badge/Auth-Clerk-6C47FF)](https://clerk.com/)
+[![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=flat&logo=supabase&logoColor=white)](https://supabase.com/)
+[![Azure](https://img.shields.io/badge/Azure-0078D4?style=flat&logo=microsoftazure&logoColor=white)](https://azure.microsoft.com/)
+
 
 Backend API cho ứng dụng quản lý tài chính cá nhân Finmate, được xây dựng với .NET 8, sử dụng Clerk cho authentication và PostgreSQL (Supabase) làm database.
 
