@@ -29,22 +29,19 @@ namespace FinmateController.Controllers
         private async Task<Guid?> GetCurrentUserIdAsync()
         {
             var claimValue = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                ?? User.FindFirst("sub")?.Value
-                ?? User.FindFirst("userId")?.Value;
+                ?? User.FindFirst("userId")?.Value
+                ?? User.FindFirst("sub")?.Value;
 
             if (string.IsNullOrEmpty(claimValue))
             {
                 return null;
             }
 
-            // Token Basic: NameIdentifier = user.Id (Guid). Token Clerk: sub = clerk user id (user_xxx).
             if (Guid.TryParse(claimValue, out var userId))
             {
-                var user = await _userService.GetUserByIdAsync(userId);
-                return user?.Id;
+                return userId;
             }
 
-            // Clerk token: lấy hoặc tạo user từ Clerk
             var userFromClerk = await _userService.GetOrCreateUserFromClerkAsync(claimValue);
             return userFromClerk?.Id;
         }

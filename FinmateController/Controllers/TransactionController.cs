@@ -10,7 +10,7 @@ namespace FinmateController.Controllers
 {
     [ApiController]
     [Route("api/transactions")]
-    [Authorize]
+    [Authorize(AuthenticationSchemes = "Clerk,Basic")]
     public class TransactionController : ControllerBase
     {
         private readonly TransactionService _transactionService;
@@ -32,16 +32,24 @@ namespace FinmateController.Controllers
 
         private async Task<Guid?> GetCurrentUserIdAsync()
         {
-            var clerkUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                ?? User.FindFirst("sub")?.Value;
+            // Ưu tiên đọc userId (Guid) từ JWT basic
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                ?? User.FindFirst("userId")?.Value;
 
-            if (string.IsNullOrEmpty(clerkUserId))
+            if (!string.IsNullOrEmpty(userIdClaim) && Guid.TryParse(userIdClaim, out var userId))
             {
-                return null;
+                return userId;
             }
 
-            var user = await _userService.GetUserByClerkIdAsync(clerkUserId);
-            return user?.Id;
+            // Fallback: token từ Clerk, map sang user trong DB
+            var clerkUserId = User.FindFirst("sub")?.Value;
+            if (!string.IsNullOrEmpty(clerkUserId))
+            {
+                var clerkUserDto = await _userService.GetOrCreateUserFromClerkAsync(clerkUserId);
+                return clerkUserDto?.Id;
+            }
+
+            return null;
         }
 
         /// <summary>

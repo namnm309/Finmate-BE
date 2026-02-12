@@ -27,8 +27,10 @@ namespace DAL.Repositories
 
         public async Task<Users?> GetByEmailAsync(string email)
         {
+            if (string.IsNullOrWhiteSpace(email)) return null;
+            var normalized = email.Trim().ToLower();
             return await _context.Users
-                .FirstOrDefaultAsync(u => u.Email == email);
+                .FirstOrDefaultAsync(u => u.Email != null && u.Email.Trim().ToLower() == normalized);
         }
 
         public async Task<Users?> GetByEmailNormalizedAsync(string normalizedEmail)

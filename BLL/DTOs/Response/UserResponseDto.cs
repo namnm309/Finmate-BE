@@ -1,3 +1,5 @@
+using DAL.Models;
+
 namespace BLL.DTOs.Response
 {
     public class UserResponseDto
@@ -13,6 +15,7 @@ namespace BLL.DTOs.Response
         public DateTime? DateOfBirth { get; set; }
         public bool IsActive { get; set; }
         public bool IsPremium { get; set; }
+        public Role Role { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
         public DateTime? LastLoginAt { get; set; }

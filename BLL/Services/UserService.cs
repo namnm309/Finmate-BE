@@ -157,6 +157,11 @@ namespace BLL.Services
         /// </summary>
         public async Task<Users> CreateUserFromWebhookAsync(ClerkWebhookData webhookData)
         {
+            if (webhookData == null)
+            {
+                throw new ArgumentNullException(nameof(webhookData));
+            }
+
             var email = await GetEmailFromWebhookOrClerkApiAsync(webhookData);
 
             // Chỉ dùng placeholder khi thật sự không có email (kể cả từ Clerk API)
@@ -551,6 +556,7 @@ namespace BLL.Services
                 DateOfBirth = user.DateOfBirth,
                 IsActive = user.IsActive,
                 IsPremium = user.IsPremium,
+                Role = user.Role,
                 CreatedAt = user.CreatedAt,
                 UpdatedAt = user.UpdatedAt,
                 LastLoginAt = user.LastLoginAt
