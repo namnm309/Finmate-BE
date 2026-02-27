@@ -493,6 +493,63 @@ namespace DAL.Migrations
                     b.ToTable("tbl_money_sources");
                 });
 
+            modelBuilder.Entity("DAL.Models.PremiumSubscription", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("LastLoginAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PaymentMethod")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Plan")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("PurchasedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("TransactionId")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExpiresAt")
+                        .HasDatabaseName("IX_PremiumSubscriptions_ExpiresAt");
+
+                    b.HasIndex("IsActive")
+                        .HasDatabaseName("IX_PremiumSubscriptions_IsActive");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("IX_PremiumSubscriptions_UserId");
+
+                    b.ToTable("tbl_premium_subscriptions", t =>
+                        {
+                            t.HasCheckConstraint("CK_PremiumSubscriptions_Plan", "\"Plan\" IN ('1-month', '6-month', '1-year')");
+                        });
+                });
+
             modelBuilder.Entity("DAL.Models.Transaction", b =>
                 {
                     b.Property<Guid>("Id")
@@ -771,6 +828,17 @@ namespace DAL.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("DAL.Models.PremiumSubscription", b =>
+                {
+                    b.HasOne("DAL.Models.Users", "User")
+                        .WithMany("PremiumSubscriptions")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("DAL.Models.Transaction", b =>
                 {
                     b.HasOne("DAL.Models.Category", "Category")
@@ -851,6 +919,8 @@ namespace DAL.Migrations
                     b.Navigation("Goals");
 
                     b.Navigation("MoneySources");
+
+                    b.Navigation("PremiumSubscriptions");
 
                     b.Navigation("Transactions");
                 });

@@ -132,7 +132,7 @@ namespace DAL.Data
             {
                 // Check constraint cho Plan
                 entity.HasCheckConstraint("CK_PremiumSubscriptions_Plan", 
-                    "Plan IN ('1-month', '6-month', '1-year')");
+                    "\"Plan\" IN ('1-month', '6-month', '1-year')");
 
                 // Indexes
                 entity.HasIndex(p => p.UserId)
