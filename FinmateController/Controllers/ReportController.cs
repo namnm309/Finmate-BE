@@ -27,24 +27,25 @@ namespace FinmateController.Controllers
 
         private async Task<Guid?> GetCurrentUserIdAsync()
         {
-            // Ưu tiên đọc userId (Guid) từ JWT basic
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                ?? User.FindFirst("userId")?.Value;
+            // Đọc userId từ cả Basic JWT (Guid) và Clerk (string userId)
+            var claimValue = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                ?? User.FindFirst("userId")?.Value
+                ?? User.FindFirst("sub")?.Value;
 
-            if (!string.IsNullOrEmpty(userIdClaim) && Guid.TryParse(userIdClaim, out var userId))
+            if (string.IsNullOrEmpty(claimValue))
+            {
+                return null;
+            }
+
+            // Trường hợp Basic JWT: NameIdentifier/userId là Guid
+            if (Guid.TryParse(claimValue, out var userId))
             {
                 return userId;
             }
 
-            // Fallback: token từ Clerk, map sang user trong DB
-            var clerkUserId = User.FindFirst("sub")?.Value;
-            if (!string.IsNullOrEmpty(clerkUserId))
-            {
-                var clerkUserDto = await _userService.GetOrCreateUserFromClerkAsync(clerkUserId);
-                return clerkUserDto?.Id;
-            }
-
-            return null;
+            // Trường hợp Clerk: NameIdentifier/sub là Clerk User ID (không phải Guid)
+            var clerkUser = await _userService.GetOrCreateUserFromClerkAsync(claimValue);
+            return clerkUser?.Id;
         }
 
         /// <summary>
