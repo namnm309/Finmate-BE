@@ -1,6 +1,7 @@
 using BLL.DTOs.Request;
 using BLL.DTOs.Response;
 using BLL.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace FinmateController.Controllers
@@ -10,6 +11,8 @@ namespace FinmateController.Controllers
     /// </summary>
     [ApiController]
     [Route("api/basic-auth")]
+    [Authorize(AuthenticationSchemes = "Clerk,Basic")]
+
     public class BasicAuthController : ControllerBase
     {
         private readonly AuthService _authService;

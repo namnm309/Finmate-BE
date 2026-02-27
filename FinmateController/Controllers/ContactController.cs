@@ -8,7 +8,8 @@ namespace FinmateController.Controllers
 {
     [ApiController]
     [Route("api/contacts")]
-    [Authorize]
+    [Authorize(AuthenticationSchemes = "Clerk,Basic")]
+
     public class ContactController : ControllerBase
     {
         private readonly ContactService _contactService;

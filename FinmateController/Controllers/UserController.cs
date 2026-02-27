@@ -9,7 +9,8 @@ namespace FinmateController.Controllers
 {
     [ApiController]
     [Route("api/users")]
-    [Authorize]
+    [Authorize(AuthenticationSchemes = "Clerk,Basic")]
+
     public class UserController : ControllerBase
     {
         private readonly UserService _userService;
