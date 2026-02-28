@@ -86,6 +86,7 @@ namespace FinmateController.Controllers
         /// <summary>
         /// Lấy thông tin user hiện tại từ JWT token
         /// Hỗ trợ cả token từ Clerk và token basic (scheme "Basic")
+        /// Ưu tiên Clerk token trước, fallback sang Basic JWT
         /// </summary>
         [HttpGet("me")]
         [Authorize(AuthenticationSchemes = "Clerk,Basic")]
@@ -93,36 +94,43 @@ namespace FinmateController.Controllers
         {
             try
             {
-                // Lấy user ID từ claims (JWT token mới)
+                // Priority 1: Kiểm tra Clerk token ("sub" claim)
+                var clerkUserId = User.FindFirst("sub")?.Value;
+                if (!string.IsNullOrEmpty(clerkUserId) && !Guid.TryParse(clerkUserId, out _))
+                {
+                    // "sub" claim tồn tại và KHÔNG phải là Guid => đây là Clerk user ID
+                    var clerkUserDto = await _userService.GetOrCreateUserFromClerkAsync(clerkUserId);
+                    if (clerkUserDto != null)
+                    {
+                        return Ok(clerkUserDto);
+                    }
+                }
+
+                // Priority 2: Kiểm tra Basic JWT (NameIdentifier/userId là Guid)
                 var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
                     ?? User.FindFirst("userId")?.Value;
 
-                if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+                if (!string.IsNullOrEmpty(userIdClaim) && Guid.TryParse(userIdClaim, out var userId))
                 {
-                    // Fallback: thử lấy từ Clerk (nếu vẫn dùng Clerk token)
-                    var clerkUserId = User.FindFirst("sub")?.Value;
-                    if (!string.IsNullOrEmpty(clerkUserId))
+                    var userDto = await _userService.GetUserByIdAsync(userId);
+                    if (userDto != null)
                     {
-                        var clerkUserDto = await _userService.GetOrCreateUserFromClerkAsync(clerkUserId);
-                        if (clerkUserDto == null)
-                        {
-                            return NotFound("User not found");
-                        }
+                        return Ok(userDto);
+                    }
+                }
+
+                // Priority 3: Clerk token với NameIdentifier (một số config Clerk dùng NameIdentifier thay vì sub)
+                var nameIdentifier = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (!string.IsNullOrEmpty(nameIdentifier) && !Guid.TryParse(nameIdentifier, out _))
+                {
+                    var clerkUserDto = await _userService.GetOrCreateUserFromClerkAsync(nameIdentifier);
+                    if (clerkUserDto != null)
+                    {
                         return Ok(clerkUserDto);
                     }
-
-                    return Unauthorized("Invalid token");
                 }
 
-                // Lấy user từ database bằng userId
-                var userDto = await _userService.GetUserByIdAsync(userId);
-                
-                if (userDto == null)
-                {
-                    return NotFound("User not found");
-                }
-
-                return Ok(userDto);
+                return Unauthorized("Invalid token");
             }
             catch (Exception ex)
             {
@@ -133,6 +141,7 @@ namespace FinmateController.Controllers
 
         /// <summary>
         /// Sync user từ Clerk vào database sau khi login
+        /// Ưu tiên Clerk token ("sub" claim) trước
         /// </summary>
         [HttpPost("sync")]
         [Authorize(AuthenticationSchemes = "Clerk,Basic")]
@@ -140,22 +149,29 @@ namespace FinmateController.Controllers
         {
             try
             {
-                // Lấy Clerk user ID từ claims
-                var clerkUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                    ?? User.FindFirst("sub")?.Value;
-
-                if (string.IsNullOrEmpty(clerkUserId))
+                // Priority 1: Clerk token ("sub" claim)
+                var clerkUserId = User.FindFirst("sub")?.Value;
+                if (!string.IsNullOrEmpty(clerkUserId) && !Guid.TryParse(clerkUserId, out _))
                 {
-                    return Unauthorized("Invalid token");
+                    var userDto = await _userService.GetOrCreateUserFromClerkAsync(clerkUserId);
+                    if (userDto != null)
+                    {
+                        return Ok(userDto);
+                    }
                 }
 
-                var userDto = await _userService.GetOrCreateUserFromClerkAsync(clerkUserId);
-                if (userDto == null)
+                // Priority 2: NameIdentifier là Clerk ID (không phải Guid)
+                var nameIdentifier = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (!string.IsNullOrEmpty(nameIdentifier) && !Guid.TryParse(nameIdentifier, out _))
                 {
-                    return NotFound("User not found");
+                    var userDto = await _userService.GetOrCreateUserFromClerkAsync(nameIdentifier);
+                    if (userDto != null)
+                    {
+                        return Ok(userDto);
+                    }
                 }
 
-                return Ok(userDto);
+                return Unauthorized("Invalid token - Clerk user ID not found");
             }
             catch (Exception ex)
             {

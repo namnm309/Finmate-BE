@@ -2,49 +2,25 @@ using BLL.DTOs.Request;
 using BLL.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Security.Claims;
 
 namespace FinmateController.Controllers
 {
     [ApiController]
     [Route("api/categories")]
     [Authorize(AuthenticationSchemes = "Clerk,Basic")]
-    public class CategoryController : ControllerBase
+    public class CategoryController : FinmateControllerBase
     {
         private readonly CategoryService _categoryService;
-        private readonly UserService _userService;
         private readonly ILogger<CategoryController> _logger;
 
         public CategoryController(
             CategoryService categoryService,
             UserService userService,
             ILogger<CategoryController> logger)
+            : base(userService)
         {
             _categoryService = categoryService;
-            _userService = userService;
             _logger = logger;
-        }
-
-        private async Task<Guid?> GetCurrentUserIdAsync()
-        {
-            // Ưu tiên đọc userId (Guid) từ JWT basic
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                ?? User.FindFirst("userId")?.Value;
-
-            if (!string.IsNullOrEmpty(userIdClaim) && Guid.TryParse(userIdClaim, out var userId))
-            {
-                return userId;
-            }
-
-            // Fallback: token từ Clerk, map sang user trong DB
-            var clerkUserId = User.FindFirst("sub")?.Value;
-            if (!string.IsNullOrEmpty(clerkUserId))
-            {
-                var clerkUserDto = await _userService.GetOrCreateUserFromClerkAsync(clerkUserId);
-                return clerkUserDto?.Id;
-            }
-
-            return null;
         }
 
         /// <summary>

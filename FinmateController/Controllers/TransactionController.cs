@@ -4,17 +4,15 @@ using FinmateController.Hubs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
-using System.Security.Claims;
 
 namespace FinmateController.Controllers
 {
     [ApiController]
     [Route("api/transactions")]
     [Authorize(AuthenticationSchemes = "Clerk,Basic")]
-    public class TransactionController : ControllerBase
+    public class TransactionController : FinmateControllerBase
     {
         private readonly TransactionService _transactionService;
-        private readonly UserService _userService;
         private readonly ILogger<TransactionController> _logger;
         private readonly IHubContext<TransactionHub> _transactionHubContext;
 
@@ -23,33 +21,11 @@ namespace FinmateController.Controllers
             UserService userService,
             ILogger<TransactionController> logger,
             IHubContext<TransactionHub> transactionHubContext)
+            : base(userService)
         {
             _transactionService = transactionService;
-            _userService = userService;
             _logger = logger;
             _transactionHubContext = transactionHubContext;
-        }
-
-        private async Task<Guid?> GetCurrentUserIdAsync()
-        {
-            // Ưu tiên đọc userId (Guid) từ JWT basic
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                ?? User.FindFirst("userId")?.Value;
-
-            if (!string.IsNullOrEmpty(userIdClaim) && Guid.TryParse(userIdClaim, out var userId))
-            {
-                return userId;
-            }
-
-            // Fallback: token từ Clerk, map sang user trong DB
-            var clerkUserId = User.FindFirst("sub")?.Value;
-            if (!string.IsNullOrEmpty(clerkUserId))
-            {
-                var clerkUserDto = await _userService.GetOrCreateUserFromClerkAsync(clerkUserId);
-                return clerkUserDto?.Id;
-            }
-
-            return null;
         }
 
         /// <summary>

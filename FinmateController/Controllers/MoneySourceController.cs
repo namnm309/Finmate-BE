@@ -3,47 +3,25 @@ using BLL.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System.Security.Claims;
 
 namespace FinmateController.Controllers
 {
     [ApiController]
     [Route("api/money-sources")]
     [Authorize(AuthenticationSchemes = "Clerk,Basic")]
-    public class MoneySourceController : ControllerBase
+    public class MoneySourceController : FinmateControllerBase
     {
         private readonly MoneySourceService _moneySourceService;
-        private readonly UserService _userService;
         private readonly ILogger<MoneySourceController> _logger;
 
         public MoneySourceController(
             MoneySourceService moneySourceService,
             UserService userService,
             ILogger<MoneySourceController> logger)
+            : base(userService)
         {
             _moneySourceService = moneySourceService;
-            _userService = userService;
             _logger = logger;
-        }
-
-        private async Task<Guid?> GetCurrentUserIdAsync()
-        {
-            var claimValue = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                ?? User.FindFirst("userId")?.Value
-                ?? User.FindFirst("sub")?.Value;
-
-            if (string.IsNullOrEmpty(claimValue))
-            {
-                return null;
-            }
-
-            if (Guid.TryParse(claimValue, out var userId))
-            {
-                return userId;
-            }
-
-            var userFromClerk = await _userService.GetOrCreateUserFromClerkAsync(claimValue);
-            return userFromClerk?.Id;
         }
 
         /// <summary>

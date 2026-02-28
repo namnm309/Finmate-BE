@@ -2,7 +2,6 @@ using BLL.DTOs.Request;
 using BLL.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Security.Claims;
 
 namespace FinmateController.Controllers
 {
@@ -10,34 +9,19 @@ namespace FinmateController.Controllers
     [Route("api/contacts")]
     [Authorize(AuthenticationSchemes = "Clerk,Basic")]
 
-    public class ContactController : ControllerBase
+    public class ContactController : FinmateControllerBase
     {
         private readonly ContactService _contactService;
-        private readonly UserService _userService;
         private readonly ILogger<ContactController> _logger;
 
         public ContactController(
             ContactService contactService,
             UserService userService,
             ILogger<ContactController> logger)
+            : base(userService)
         {
             _contactService = contactService;
-            _userService = userService;
             _logger = logger;
-        }
-
-        private async Task<Guid?> GetCurrentUserIdAsync()
-        {
-            var clerkUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                ?? User.FindFirst("sub")?.Value;
-
-            if (string.IsNullOrEmpty(clerkUserId))
-            {
-                return null;
-            }
-
-            var user = await _userService.GetUserByClerkIdAsync(clerkUserId);
-            return user?.Id;
         }
 
         /// <summary>

@@ -2,50 +2,25 @@ using BLL.DTOs.Response;
 using BLL.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Security.Claims;
 
 namespace FinmateController.Controllers
 {
     [ApiController]
     [Route("api/reports")]
     [Authorize(AuthenticationSchemes = "Clerk,Basic")]
-    public class ReportController : ControllerBase
+    public class ReportController : FinmateControllerBase
     {
         private readonly ReportService _reportService;
-        private readonly UserService _userService;
         private readonly ILogger<ReportController> _logger;
 
         public ReportController(
             ReportService reportService,
             UserService userService,
             ILogger<ReportController> logger)
+            : base(userService)
         {
             _reportService = reportService;
-            _userService = userService;
             _logger = logger;
-        }
-
-        private async Task<Guid?> GetCurrentUserIdAsync()
-        {
-            // Đọc userId từ cả Basic JWT (Guid) và Clerk (string userId)
-            var claimValue = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                ?? User.FindFirst("userId")?.Value
-                ?? User.FindFirst("sub")?.Value;
-
-            if (string.IsNullOrEmpty(claimValue))
-            {
-                return null;
-            }
-
-            // Trường hợp Basic JWT: NameIdentifier/userId là Guid
-            if (Guid.TryParse(claimValue, out var userId))
-            {
-                return userId;
-            }
-
-            // Trường hợp Clerk: NameIdentifier/sub là Clerk User ID (không phải Guid)
-            var clerkUser = await _userService.GetOrCreateUserFromClerkAsync(claimValue);
-            return clerkUser?.Id;
         }
 
         /// <summary>
