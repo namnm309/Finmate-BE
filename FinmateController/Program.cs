@@ -66,8 +66,12 @@ namespace FinmateController
             // Register ClerkService với HttpClient riêng (GIỮ NGUYÊN CLERK)
             builder.Services.AddHttpClient<ClerkService>();
 
-            // MegaLLM AI Chat (GPT-4o-mini)
-            builder.Services.AddHttpClient<ChatService>();
+            // Gemini AI Chat - timeout 90s
+            builder.Services.AddHttpClient<ChatService>()
+                .ConfigureHttpClient(client =>
+                {
+                    client.Timeout = TimeSpan.FromSeconds(90);
+                });
 
             // =======================
             // Auth: Clerk (giữ nguyên) + Basic (username/password)
@@ -177,6 +181,13 @@ namespace FinmateController
             });
 
             var app = builder.Build();
+
+            // Cảnh báo nếu Gemini chưa cấu hình
+            if (string.IsNullOrWhiteSpace(builder.Configuration["Gemini:ApiKey"]))
+            {
+                var startupLogger = app.Services.GetRequiredService<ILogger<Program>>();
+                startupLogger.LogWarning("Gemini:ApiKey chưa được cấu hình. Thêm Gemini__ApiKey vào appsettings hoặc Azure Application Settings.");
+            }
 
             // Swagger (bật mọi env)
             app.UseSwagger();
