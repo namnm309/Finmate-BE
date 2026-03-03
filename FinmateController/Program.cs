@@ -66,7 +66,7 @@ namespace FinmateController
             // Register ClerkService với HttpClient riêng (GIỮ NGUYÊN CLERK)
             builder.Services.AddHttpClient<ClerkService>();
 
-            // MegaLLM AI Chat - timeout 90s (tránh 502 do MegaLLM phản hồi chậm)
+            // Gemini AI Chat - timeout 90s
             builder.Services.AddHttpClient<ChatService>()
                 .ConfigureHttpClient(client =>
                 {
@@ -182,11 +182,11 @@ namespace FinmateController
 
             var app = builder.Build();
 
-            // Cảnh báo nếu MegaLLM chưa cấu hình (quan trọng khi deploy Azure)
-            if (string.IsNullOrWhiteSpace(builder.Configuration["MegaLLM:ApiKey"]))
+            // Cảnh báo nếu Gemini chưa cấu hình
+            if (string.IsNullOrWhiteSpace(builder.Configuration["Gemini:ApiKey"]))
             {
                 var startupLogger = app.Services.GetRequiredService<ILogger<Program>>();
-                startupLogger.LogWarning("MegaLLM:ApiKey chưa được cấu hình. Thêm Application Setting MegaLLM__ApiKey trên Azure Portal.");
+                startupLogger.LogWarning("Gemini:ApiKey chưa được cấu hình. Thêm Gemini__ApiKey vào appsettings hoặc Azure Application Settings.");
             }
 
             // Swagger (bật mọi env)

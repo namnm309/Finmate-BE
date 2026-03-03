@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace FinmateController.Controllers
 {
     /// <summary>
-    /// AI Chat Bot - tích hợp MegaLLM (GPT-4o-mini)
+    /// AI Chat Bot - tích hợp Google Gemini
     /// </summary>
     [ApiController]
     [Route("api/chat")]
@@ -24,6 +24,26 @@ namespace FinmateController.Controllers
         {
             _chatService = chatService;
             _logger = logger;
+        }
+
+        /// <summary>
+        /// Kiểm tra cấu hình Gemini
+        /// </summary>
+        [HttpGet("diagnostic")]
+        [AllowAnonymous]
+        public async Task<IActionResult> Diagnostic(CancellationToken cancellationToken = default)
+        {
+            var (apiKeyConfigured, provider, baseUrl, modelId, testError) = await _chatService.GetDiagnosticAsync(cancellationToken);
+            return Ok(new
+            {
+                apiKeyConfigured,
+                provider,
+                baseUrl,
+                modelId,
+                status = testError == null ? "OK" : "Error",
+                error = testError,
+                timestamp = DateTime.UtcNow
+            });
         }
 
         /// <summary>
@@ -51,22 +71,22 @@ namespace FinmateController.Controllers
             }
             catch (InvalidOperationException ex) when (ex.Message.Contains("ApiKey") || ex.Message.Contains("chưa được cấu hình"))
             {
-                _logger.LogError(ex, "MegaLLM ApiKey chưa cấu hình trên server");
+                _logger.LogError(ex, "Gemini ApiKey chưa cấu hình trên server");
                 return StatusCode(503, new { message = "AI chưa được cấu hình. Liên hệ quản trị viên." });
             }
             catch (HttpRequestException ex)
             {
-                _logger.LogError(ex, "MegaLLM API error: {Message}", ex.Message);
-                return StatusCode(502, new { message = "Không thể kết nối AI. Vui lòng thử lại sau." });
+                _logger.LogError(ex, "Gemini API error: {Message}", ex.Message);
+                return StatusCode(502, new { message = "Không thể kết nối AI. Vui lòng thử lại sau.", detail = ex.Message });
             }
             catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
             {
-                _logger.LogWarning(ex, "MegaLLM timeout");
+                _logger.LogWarning(ex, "Gemini timeout");
                 return StatusCode(504, new { message = "AI phản hồi quá chậm. Vui lòng thử lại." });
             }
             catch (TaskCanceledException)
             {
-                _logger.LogWarning("MegaLLM request cancelled/timeout");
+                _logger.LogWarning("Gemini request cancelled/timeout");
                 return StatusCode(504, new { message = "Yêu cầu quá thời gian. Vui lòng thử lại." });
             }
             catch (Exception ex)
