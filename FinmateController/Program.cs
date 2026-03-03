@@ -182,11 +182,11 @@ namespace FinmateController
 
             var app = builder.Build();
 
-            // Cảnh báo nếu Gemini chưa cấu hình
-            if (string.IsNullOrWhiteSpace(builder.Configuration["Gemini:ApiKey"]))
+            // Cảnh báo nếu Mega LLM chưa cấu hình
+            if (string.IsNullOrWhiteSpace(builder.Configuration["MegaLLM:ApiKey"]))
             {
                 var startupLogger = app.Services.GetRequiredService<ILogger<Program>>();
-                startupLogger.LogWarning("Gemini:ApiKey chưa được cấu hình. Thêm Gemini__ApiKey vào appsettings hoặc Azure Application Settings.");
+                startupLogger.LogWarning("MegaLLM:ApiKey chưa được cấu hình. Thêm MegaLLM__ApiKey vào Azure Application Settings.");
             }
 
             // Swagger (bật mọi env)

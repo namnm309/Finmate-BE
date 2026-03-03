@@ -15,9 +15,9 @@ namespace BLL.Services
         private readonly IConfiguration _configuration;
         private readonly ILogger<ChatService> _logger;
 
-        private static readonly JsonSerializerOptions GeminiJsonOptions = new()
+        private static readonly JsonSerializerOptions JsonOptions = new()
         {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
         };
 
@@ -29,56 +29,60 @@ namespace BLL.Services
         }
 
         /// <summary>
-        /// Kiểm tra cấu hình Gemini
+        /// Kiểm tra cấu hình Mega LLM (OpenAI-compatible)
         /// </summary>
         public async Task<(bool ApiKeyConfigured, string Provider, string BaseUrl, string ModelId, string? TestError)> GetDiagnosticAsync(CancellationToken cancellationToken = default)
         {
-            var geminiKey = _configuration["Gemini:ApiKey"];
-            var modelId = _configuration["Gemini:ModelId"] ?? "gemini-1.5-flash";
+            var apiKey = _configuration["MegaLLM:ApiKey"];
+            var baseUrl = _configuration["MegaLLM:BaseUrl"]?.TrimEnd('/') ?? "https://ai.megallm.io/v1";
+            var modelId = _configuration["MegaLLM:ModelId"] ?? "gpt-5-mini";
 
-            if (string.IsNullOrWhiteSpace(geminiKey))
+            if (string.IsNullOrWhiteSpace(apiKey))
             {
-                return (false, "Gemini", "generativelanguage.googleapis.com", modelId, "Gemini:ApiKey chưa được cấu hình.");
+                return (false, "MegaLLM", baseUrl, modelId, "MegaLLM:ApiKey chưa được cấu hình.");
             }
 
             try
             {
-                var url = $"https://generativelanguage.googleapis.com/v1beta/models/{modelId}:generateContent";
-                var body = new GeminiRequest
+                var url = $"{baseUrl}/chat/completions";
+                var body = new MegaLLMRequest
                 {
-                    Contents = new List<GeminiContent> { new() { Parts = new List<GeminiPart> { new() { Text = "Hello" } } } },
-                    GenerationConfig = new GeminiGenerationConfig { MaxOutputTokens = 5, Temperature = 0.1 }
+                    Model = modelId,
+                    Messages = new List<MegaLLMMessage> { new() { Role = "user", Content = "Hello" } },
+                    MaxTokens = 5,
+                    Temperature = 0.1
                 };
-                var jsonBody = JsonSerializer.Serialize(body, GeminiJsonOptions);
+                var jsonBody = JsonSerializer.Serialize(body, JsonOptions);
                 using var req = new HttpRequestMessage(HttpMethod.Post, url) { Content = new StringContent(jsonBody, Encoding.UTF8, "application/json") };
-                req.Headers.Add("x-goog-api-key", geminiKey);
+                req.Headers.Add("Authorization", $"Bearer {apiKey}");
                 var response = await _httpClient.SendAsync(req, cancellationToken);
                 if (!response.IsSuccessStatusCode)
                 {
                     var err = await response.Content.ReadAsStringAsync(cancellationToken);
-                    return (true, "Gemini", "generativelanguage.googleapis.com", modelId, $"Gemini trả {(int)response.StatusCode}: {err}");
+                    return (true, "MegaLLM", baseUrl, modelId, $"Mega LLM trả {(int)response.StatusCode}: {err}");
                 }
-                return (true, "Gemini", "generativelanguage.googleapis.com", modelId, null);
+                return (true, "MegaLLM", baseUrl, modelId, null);
             }
             catch (Exception ex)
             {
-                return (true, "Gemini", "generativelanguage.googleapis.com", modelId, ex.Message);
+                return (true, "MegaLLM", baseUrl, modelId, ex.Message);
             }
         }
 
         /// <summary>
-        /// Gửi tin nhắn đến Gemini AI và nhận phản hồi
+        /// Gửi tin nhắn đến Mega LLM (OpenAI-compatible) và nhận phản hồi
         /// </summary>
         public async Task<ChatResponseDto> SendChatAsync(ChatRequestDto request, CancellationToken cancellationToken = default)
         {
-            var apiKey = _configuration["Gemini:ApiKey"];
-            var modelId = _configuration["Gemini:ModelId"] ?? "gemini-1.5-flash";
-            var maxTokens = _configuration.GetValue<int>("Gemini:MaxTokens", 4096);
-            var temperature = _configuration.GetValue<double>("Gemini:Temperature", 0.7);
+            var apiKey = _configuration["MegaLLM:ApiKey"];
+            var baseUrl = _configuration["MegaLLM:BaseUrl"]?.TrimEnd('/') ?? "https://ai.megallm.io/v1";
+            var modelId = _configuration["MegaLLM:ModelId"] ?? "gpt-5-mini";
+            var maxTokens = _configuration.GetValue<int>("MegaLLM:MaxTokens", 4096);
+            var temperature = _configuration.GetValue<double>("MegaLLM:Temperature", 0.7);
 
             if (string.IsNullOrWhiteSpace(apiKey))
             {
-                throw new InvalidOperationException("Gemini:ApiKey chưa được cấu hình trong appsettings.json");
+                throw new InvalidOperationException("MegaLLM:ApiKey chưa được cấu hình. Thêm MegaLLM__ApiKey vào Azure Application Settings.");
             }
 
             var systemPrompt = request.SystemPrompt?.Trim();
@@ -98,26 +102,26 @@ namespace BLL.Services
                 throw new ArgumentException("Message hoặc Messages không được để trống");
             }
 
-            var geminiRequest = new GeminiRequest
+            var messages = new List<MegaLLMMessage>
             {
-                Contents = new List<GeminiContent>
-                {
-                    new() { Parts = new List<GeminiPart> { new() { Text = userText } } }
-                },
-                SystemInstruction = new GeminiSystemInstruction { Parts = new List<GeminiPart> { new() { Text = systemPrompt } } },
-                GenerationConfig = new GeminiGenerationConfig
-                {
-                    MaxOutputTokens = maxTokens,
-                    Temperature = temperature
-                }
+                new() { Role = "system", Content = systemPrompt },
+                new() { Role = "user", Content = userText }
             };
 
-            var url = $"https://generativelanguage.googleapis.com/v1beta/models/{modelId}:generateContent";
-            var jsonBody = JsonSerializer.Serialize(geminiRequest, GeminiJsonOptions);
-            _logger.LogInformation("Gemini request Model: {Model}", modelId);
+            var megaRequest = new MegaLLMRequest
+            {
+                Model = modelId,
+                Messages = messages,
+                MaxTokens = maxTokens,
+                Temperature = temperature
+            };
+
+            var url = $"{baseUrl}/chat/completions";
+            var jsonBody = JsonSerializer.Serialize(megaRequest, JsonOptions);
+            _logger.LogInformation("Mega LLM request Model: {Model}", modelId);
 
             using var requestMessage = new HttpRequestMessage(HttpMethod.Post, url);
-            requestMessage.Headers.Add("x-goog-api-key", apiKey);
+            requestMessage.Headers.Add("Authorization", $"Bearer {apiKey}");
             requestMessage.Content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
 
             var response = await _httpClient.SendAsync(requestMessage, cancellationToken);
@@ -125,71 +129,58 @@ namespace BLL.Services
             if (!response.IsSuccessStatusCode)
             {
                 var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
-                _logger.LogError("Gemini API error {StatusCode}: {Body}", response.StatusCode, errorBody);
-                throw new HttpRequestException($"Gemini trả lỗi {(int)response.StatusCode}: {errorBody}");
+                _logger.LogError("Mega LLM API error {StatusCode}: {Body}", response.StatusCode, errorBody);
+                throw new HttpRequestException($"Mega LLM trả lỗi {(int)response.StatusCode}: {errorBody}");
             }
 
-            var apiResponse = await response.Content.ReadFromJsonAsync<GeminiResponse>(GeminiJsonOptions, cancellationToken)
-                ?? throw new InvalidOperationException("Không thể đọc phản hồi từ Gemini");
+            var apiResponse = await response.Content.ReadFromJsonAsync<MegaLLMResponse>(JsonOptions, cancellationToken)
+                ?? throw new InvalidOperationException("Không thể đọc phản hồi từ Mega LLM");
 
-            var text = apiResponse.Candidates?.FirstOrDefault()?.Content?.Parts?.FirstOrDefault()?.Text ?? string.Empty;
-            var usage = apiResponse.UsageMetadata != null
+            var text = apiResponse.Choices?.FirstOrDefault()?.Message?.Content ?? string.Empty;
+            var usage = apiResponse.Usage != null
                 ? new ChatUsageDto
                 {
-                    PromptTokens = apiResponse.UsageMetadata.PromptTokenCount ?? 0,
-                    CompletionTokens = apiResponse.UsageMetadata.CandidatesTokenCount ?? 0,
-                    TotalTokens = (apiResponse.UsageMetadata.PromptTokenCount ?? 0) + (apiResponse.UsageMetadata.CandidatesTokenCount ?? 0)
+                    PromptTokens = apiResponse.Usage.PromptTokens,
+                    CompletionTokens = apiResponse.Usage.CompletionTokens,
+                    TotalTokens = apiResponse.Usage.TotalTokens
                 }
                 : null;
 
             return new ChatResponseDto { Content = text, Usage = usage };
         }
 
-        #region Gemini API Models
+        #region Mega LLM (OpenAI-compatible) Models
 
-        private class GeminiRequest
+        private class MegaLLMRequest
         {
-            public List<GeminiContent> Contents { get; set; } = new();
-            public GeminiSystemInstruction? SystemInstruction { get; set; }
-            public GeminiGenerationConfig? GenerationConfig { get; set; }
-        }
-
-        private class GeminiContent
-        {
-            public List<GeminiPart> Parts { get; set; } = new();
-        }
-
-        private class GeminiPart
-        {
-            public string Text { get; set; } = "";
-        }
-
-        private class GeminiSystemInstruction
-        {
-            public List<GeminiPart> Parts { get; set; } = new();
-        }
-
-        private class GeminiGenerationConfig
-        {
-            public int MaxOutputTokens { get; set; }
+            public string Model { get; set; } = "";
+            public List<MegaLLMMessage> Messages { get; set; } = new();
+            public int MaxTokens { get; set; }
             public double Temperature { get; set; }
         }
 
-        private class GeminiResponse
+        private class MegaLLMMessage
         {
-            public List<GeminiCandidate>? Candidates { get; set; }
-            public GeminiUsageMetadata? UsageMetadata { get; set; }
+            public string Role { get; set; } = "";
+            public string Content { get; set; } = "";
         }
 
-        private class GeminiCandidate
+        private class MegaLLMResponse
         {
-            public GeminiContent? Content { get; set; }
+            public List<MegaLLMChoice>? Choices { get; set; }
+            public MegaLLMUsage? Usage { get; set; }
         }
 
-        private class GeminiUsageMetadata
+        private class MegaLLMChoice
         {
-            public int? PromptTokenCount { get; set; }
-            public int? CandidatesTokenCount { get; set; }
+            public MegaLLMMessage? Message { get; set; }
+        }
+
+        private class MegaLLMUsage
+        {
+            public int PromptTokens { get; set; }
+            public int CompletionTokens { get; set; }
+            public int TotalTokens { get; set; }
         }
 
         #endregion
