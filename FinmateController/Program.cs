@@ -66,6 +66,9 @@ namespace FinmateController
             // Register ClerkService với HttpClient riêng (GIỮ NGUYÊN CLERK)
             builder.Services.AddHttpClient<ClerkService>();
 
+            // MegaLLM AI Chat (GPT-4o-mini)
+            builder.Services.AddHttpClient<ChatService>();
+
             // =======================
             // Auth: Clerk (giữ nguyên) + Basic (username/password)
             // =======================
