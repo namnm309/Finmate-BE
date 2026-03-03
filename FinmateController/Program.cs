@@ -66,8 +66,12 @@ namespace FinmateController
             // Register ClerkService với HttpClient riêng (GIỮ NGUYÊN CLERK)
             builder.Services.AddHttpClient<ClerkService>();
 
-            // MegaLLM AI Chat (GPT-4o-mini)
-            builder.Services.AddHttpClient<ChatService>();
+            // MegaLLM AI Chat - timeout 90s (tránh 502 do MegaLLM phản hồi chậm)
+            builder.Services.AddHttpClient<ChatService>()
+                .ConfigureHttpClient(client =>
+                {
+                    client.Timeout = TimeSpan.FromSeconds(90);
+                });
 
             // =======================
             // Auth: Clerk (giữ nguyên) + Basic (username/password)
@@ -177,6 +181,13 @@ namespace FinmateController
             });
 
             var app = builder.Build();
+
+            // Cảnh báo nếu MegaLLM chưa cấu hình (quan trọng khi deploy Azure)
+            if (string.IsNullOrWhiteSpace(builder.Configuration["MegaLLM:ApiKey"]))
+            {
+                var startupLogger = app.Services.GetRequiredService<ILogger<Program>>();
+                startupLogger.LogWarning("MegaLLM:ApiKey chưa được cấu hình. Thêm Application Setting MegaLLM__ApiKey trên Azure Portal.");
+            }
 
             // Swagger (bật mọi env)
             app.UseSwagger();
