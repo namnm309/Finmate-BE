@@ -369,6 +369,9 @@ ASALocalRun/
 # BeatPulse healthcheck temp database
 healthchecksdb
 
+# Local config với API keys (chỉ dùng user-secrets hoặc Azure)
+appsettings.Development.json
+
 # Backup folder for Package Reference Convert tool in Visual Studio 2017
 MigrationBackup/
 
