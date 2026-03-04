@@ -34,6 +34,7 @@ namespace FinmateController.Controllers
         public async Task<IActionResult> Diagnostic(CancellationToken cancellationToken = default)
         {
             var (apiKeyConfigured, provider, baseUrl, modelId, testError) = await _chatService.GetDiagnosticAsync(cancellationToken);
+            var visionModels = await _chatService.GetVisionModelsAsync(cancellationToken);
             return Ok(new
             {
                 apiKeyConfigured,
@@ -42,6 +43,7 @@ namespace FinmateController.Controllers
                 modelId,
                 status = testError == null ? "OK" : "Error",
                 error = testError,
+                visionModels,
                 timestamp = DateTime.UtcNow
             });
         }

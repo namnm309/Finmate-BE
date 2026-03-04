@@ -29,13 +29,49 @@ namespace BLL.Services
         }
 
         /// <summary>
+        /// Liệt kê các model vision có sẵn trên MegaLLM (free tier)
+        /// </summary>
+        public async Task<List<string>> GetVisionModelsAsync(CancellationToken cancellationToken = default)
+        {
+            var apiKey = _configuration["MegaLLM:ApiKey"];
+            var baseUrl = _configuration["MegaLLM:BaseUrl"]?.TrimEnd('/') ?? "https://ai.megallm.io/v1";
+            if (string.IsNullOrWhiteSpace(apiKey)) return new List<string>();
+
+            try
+            {
+                using var req = new HttpRequestMessage(HttpMethod.Get, $"{baseUrl}/models");
+                req.Headers.Add("Authorization", $"Bearer {apiKey}");
+                var response = await _httpClient.SendAsync(req, cancellationToken);
+                if (!response.IsSuccessStatusCode) return new List<string>();
+
+                var json = await response.Content.ReadAsStringAsync(cancellationToken);
+                using var doc = JsonDocument.Parse(json);
+                var visionModels = new List<string>();
+                if (doc.RootElement.TryGetProperty("data", out var data))
+                {
+                    foreach (var model in data.EnumerateArray())
+                    {
+                        if (model.TryGetProperty("capabilities", out var caps) &&
+                            caps.TryGetProperty("supports_vision", out var sv) && sv.GetBoolean())
+                        {
+                            if (model.TryGetProperty("id", out var id))
+                                visionModels.Add(id.GetString() ?? "");
+                        }
+                    }
+                }
+                return visionModels;
+            }
+            catch { return new List<string>(); }
+        }
+
+        /// <summary>
         /// Kiểm tra cấu hình Mega LLM (OpenAI-compatible)
         /// </summary>
         public async Task<(bool ApiKeyConfigured, string Provider, string BaseUrl, string ModelId, string? TestError)> GetDiagnosticAsync(CancellationToken cancellationToken = default)
         {
             var apiKey = _configuration["MegaLLM:ApiKey"];
             var baseUrl = _configuration["MegaLLM:BaseUrl"]?.TrimEnd('/') ?? "https://ai.megallm.io/v1";
-            var modelId = _configuration["MegaLLM:ModelId"] ?? "gpt-5-mini";
+            var modelId = _configuration["MegaLLM:ModelId"] ?? "openai-gpt-oss-120b";
 
             if (string.IsNullOrWhiteSpace(apiKey))
             {
@@ -80,11 +116,13 @@ namespace BLL.Services
             var maxTokens = _configuration.GetValue<int>("MegaLLM:MaxTokens", 4096);
             var temperature = _configuration.GetValue<double>("MegaLLM:Temperature", 0.7);
 
-            // Dùng gpt-4o khi có ảnh (vision), fallback về config hoặc gpt-4o-mini
+            // Dùng VisionModelId khi có ảnh (nếu được cấu hình), fallback về ModelId
             var hasImage = !string.IsNullOrWhiteSpace(request.ImageBase64);
-            var modelId = hasImage
-                ? "gpt-4o"
-                : (_configuration["MegaLLM:ModelId"] ?? "gpt-4o-mini");
+            var configuredVisionModel = _configuration["MegaLLM:VisionModelId"];
+            var configuredTextModel = _configuration["MegaLLM:ModelId"] ?? "openai-gpt-oss-120b";
+            var modelId = hasImage && !string.IsNullOrWhiteSpace(configuredVisionModel)
+                ? configuredVisionModel
+                : configuredTextModel;
 
             if (string.IsNullOrWhiteSpace(apiKey))
             {
@@ -130,37 +168,37 @@ namespace BLL.Services
                                 {
                                     ImageUrl = new MegaLLMImageUrl
                                     {
-                                        Url = $"data:image/jpeg;base64,{request.ImageBase64}",
-                                        Detail = "high"
-                                    }
+                                    Url = $"data:image/jpeg;base64,{request.ImageBase64}",
+                                    Detail = "auto"
                                 }
                             }
-                        });
-                    }
-                    else
-                    {
-                        messages.Add(new MegaLLMTextMessage { Role = msg.Role ?? "user", Content = msg.Content ?? "" });
-                    }
+                        }
+                    });
+                }
+                else
+                {
+                    messages.Add(new MegaLLMTextMessage { Role = msg.Role ?? "user", Content = msg.Content ?? "" });
                 }
             }
-            else if (!string.IsNullOrWhiteSpace(request.Message))
+        }
+        else if (!string.IsNullOrWhiteSpace(request.Message))
+        {
+            // Fallback: dùng Message đơn giản
+            if (hasImage)
             {
-                // Fallback: dùng Message đơn giản
-                if (hasImage)
+                messages.Add(new MegaLLMVisionMessage
                 {
-                    messages.Add(new MegaLLMVisionMessage
+                    Role = "user",
+                    Content = new List<object>
                     {
-                        Role = "user",
-                        Content = new List<object>
+                        new MegaLLMTextPart { Text = request.Message },
+                        new MegaLLMImagePart
                         {
-                            new MegaLLMTextPart { Text = request.Message },
-                            new MegaLLMImagePart
+                            ImageUrl = new MegaLLMImageUrl
                             {
-                                ImageUrl = new MegaLLMImageUrl
-                                {
-                                    Url = $"data:image/jpeg;base64,{request.ImageBase64}",
-                                    Detail = "high"
-                                }
+                                Url = $"data:image/jpeg;base64,{request.ImageBase64}",
+                                Detail = "auto"
+                            }
                             }
                         }
                     });
@@ -196,8 +234,20 @@ namespace BLL.Services
             if (!response.IsSuccessStatusCode)
             {
                 var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
-                _logger.LogError("Mega LLM API error {StatusCode}: {Body}", response.StatusCode, errorBody);
-                throw new HttpRequestException($"Mega LLM trả lỗi {(int)response.StatusCode}: {errorBody}");
+                _logger.LogError("Mega LLM API error {StatusCode} Model={Model}: {Body}", response.StatusCode, modelId, errorBody);
+
+                // Gợi ý rõ ràng khi model không tồn tại hoặc không hỗ trợ vision
+                var status = (int)response.StatusCode;
+                if (hasImage && (status == 400 || status == 404 || status == 422))
+                {
+                    throw new HttpRequestException(
+                        $"Model '{modelId}' không hỗ trợ vision hoặc không tồn tại trong gói hiện tại. " +
+                        $"Hãy kiểm tra dashboard MegaLLM (megallm.io/dashboard) để tìm model ID có vision, " +
+                        $"rồi thêm MegaLLM__VisionModelId vào Azure Application Settings. " +
+                        $"Chi tiết: {errorBody}");
+                }
+
+                throw new HttpRequestException($"Mega LLM trả lỗi {status}: {errorBody}");
             }
 
             var apiResponse = await response.Content.ReadFromJsonAsync<MegaLLMResponse>(JsonOptions, cancellationToken)
@@ -258,7 +308,7 @@ namespace BLL.Services
         private class MegaLLMImageUrl
         {
             public string Url { get; set; } = "";
-            public string Detail { get; set; } = "high";
+            public string Detail { get; set; } = "auto";
         }
 
         private class MegaLLMResponse
