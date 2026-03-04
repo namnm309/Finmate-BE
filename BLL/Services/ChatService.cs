@@ -48,7 +48,7 @@ namespace BLL.Services
                 var body = new MegaLLMRequest
                 {
                     Model = modelId,
-                    Messages = new List<MegaLLMMessage> { new() { Role = "user", Content = "Hello" } },
+                    Messages = new List<object> { new MegaLLMTextMessage { Role = "user", Content = "Hello" } },
                     MaxTokens = 5,
                     Temperature = 0.1
                 };
@@ -70,15 +70,21 @@ namespace BLL.Services
         }
 
         /// <summary>
-        /// Gửi tin nhắn đến Mega LLM (OpenAI-compatible) và nhận phản hồi
+        /// Gửi tin nhắn đến Mega LLM (OpenAI-compatible) và nhận phản hồi.
+        /// Hỗ trợ vision: khi có ImageBase64, message cuối cùng sẽ là multimodal (text + image_url).
         /// </summary>
         public async Task<ChatResponseDto> SendChatAsync(ChatRequestDto request, CancellationToken cancellationToken = default)
         {
             var apiKey = _configuration["MegaLLM:ApiKey"];
             var baseUrl = _configuration["MegaLLM:BaseUrl"]?.TrimEnd('/') ?? "https://ai.megallm.io/v1";
-            var modelId = _configuration["MegaLLM:ModelId"] ?? "gpt-5-mini";
             var maxTokens = _configuration.GetValue<int>("MegaLLM:MaxTokens", 4096);
             var temperature = _configuration.GetValue<double>("MegaLLM:Temperature", 0.7);
+
+            // Dùng gpt-4o khi có ảnh (vision), fallback về config hoặc gpt-4o-mini
+            var hasImage = !string.IsNullOrWhiteSpace(request.ImageBase64);
+            var modelId = hasImage
+                ? "gpt-4o"
+                : (_configuration["MegaLLM:ModelId"] ?? "gpt-4o-mini");
 
             if (string.IsNullOrWhiteSpace(apiKey))
             {
@@ -91,22 +97,83 @@ namespace BLL.Services
                 systemPrompt = "Bạn là trợ lý tài chính cá nhân thông minh của ứng dụng Finmate. Trả lời ngắn gọn bằng tiếng Việt.";
             }
 
-            var userText = request.Message?.Trim();
+            // Build danh sách messages đầy đủ cho MegaLLM
+            var messages = new List<object>();
+
+            // 1. System prompt
+            messages.Add(new MegaLLMTextMessage { Role = "system", Content = systemPrompt });
+
+            // 2. Lịch sử hội thoại (bỏ qua message system từ client nếu có)
             if (request.Messages != null && request.Messages.Count > 0)
             {
-                userText = request.Messages.LastOrDefault(m => m.Role?.Equals("user", StringComparison.OrdinalIgnoreCase) == true)?.Content?.Trim() ?? userText;
-            }
+                var historyMessages = request.Messages
+                    .Where(m => !string.Equals(m.Role, "system", StringComparison.OrdinalIgnoreCase))
+                    .ToList();
 
-            if (string.IsNullOrWhiteSpace(userText))
+                for (int i = 0; i < historyMessages.Count; i++)
+                {
+                    var msg = historyMessages[i];
+                    bool isLastUserMsg = hasImage
+                        && i == historyMessages.Count - 1
+                        && string.Equals(msg.Role, "user", StringComparison.OrdinalIgnoreCase);
+
+                    if (isLastUserMsg)
+                    {
+                        // Message cuối cùng của user + có ảnh → vision message
+                        messages.Add(new MegaLLMVisionMessage
+                        {
+                            Role = "user",
+                            Content = new List<object>
+                            {
+                                new MegaLLMTextPart { Text = msg.Content ?? "" },
+                                new MegaLLMImagePart
+                                {
+                                    ImageUrl = new MegaLLMImageUrl
+                                    {
+                                        Url = $"data:image/jpeg;base64,{request.ImageBase64}",
+                                        Detail = "high"
+                                    }
+                                }
+                            }
+                        });
+                    }
+                    else
+                    {
+                        messages.Add(new MegaLLMTextMessage { Role = msg.Role ?? "user", Content = msg.Content ?? "" });
+                    }
+                }
+            }
+            else if (!string.IsNullOrWhiteSpace(request.Message))
+            {
+                // Fallback: dùng Message đơn giản
+                if (hasImage)
+                {
+                    messages.Add(new MegaLLMVisionMessage
+                    {
+                        Role = "user",
+                        Content = new List<object>
+                        {
+                            new MegaLLMTextPart { Text = request.Message },
+                            new MegaLLMImagePart
+                            {
+                                ImageUrl = new MegaLLMImageUrl
+                                {
+                                    Url = $"data:image/jpeg;base64,{request.ImageBase64}",
+                                    Detail = "high"
+                                }
+                            }
+                        }
+                    });
+                }
+                else
+                {
+                    messages.Add(new MegaLLMTextMessage { Role = "user", Content = request.Message });
+                }
+            }
+            else
             {
                 throw new ArgumentException("Message hoặc Messages không được để trống");
             }
-
-            var messages = new List<MegaLLMMessage>
-            {
-                new() { Role = "system", Content = systemPrompt },
-                new() { Role = "user", Content = userText }
-            };
 
             var megaRequest = new MegaLLMRequest
             {
@@ -118,7 +185,7 @@ namespace BLL.Services
 
             var url = $"{baseUrl}/chat/completions";
             var jsonBody = JsonSerializer.Serialize(megaRequest, JsonOptions);
-            _logger.LogInformation("Mega LLM request Model: {Model}", modelId);
+            _logger.LogInformation("Mega LLM request Model: {Model}, HasImage: {HasImage}, MessageCount: {Count}", modelId, hasImage, messages.Count);
 
             using var requestMessage = new HttpRequestMessage(HttpMethod.Post, url);
             requestMessage.Headers.Add("Authorization", $"Bearer {apiKey}");
@@ -154,15 +221,44 @@ namespace BLL.Services
         private class MegaLLMRequest
         {
             public string Model { get; set; } = "";
-            public List<MegaLLMMessage> Messages { get; set; } = new();
+            public List<object> Messages { get; set; } = new();
             public int MaxTokens { get; set; }
             public double Temperature { get; set; }
         }
 
-        private class MegaLLMMessage
+        // Text-only message: { "role": "user", "content": "..." }
+        private class MegaLLMTextMessage
         {
             public string Role { get; set; } = "";
             public string Content { get; set; } = "";
+        }
+
+        // Vision message: { "role": "user", "content": [...] }
+        private class MegaLLMVisionMessage
+        {
+            public string Role { get; set; } = "";
+            public List<object> Content { get; set; } = new();
+        }
+
+        // Text part trong vision content
+        private class MegaLLMTextPart
+        {
+            public string Type { get; set; } = "text";
+            public string Text { get; set; } = "";
+        }
+
+        // Image part trong vision content
+        private class MegaLLMImagePart
+        {
+            public string Type { get; set; } = "image_url";
+            [JsonPropertyName("image_url")]
+            public MegaLLMImageUrl ImageUrl { get; set; } = new();
+        }
+
+        private class MegaLLMImageUrl
+        {
+            public string Url { get; set; } = "";
+            public string Detail { get; set; } = "high";
         }
 
         private class MegaLLMResponse
@@ -173,7 +269,7 @@ namespace BLL.Services
 
         private class MegaLLMChoice
         {
-            public MegaLLMMessage? Message { get; set; }
+            public MegaLLMTextMessage? Message { get; set; }
         }
 
         private class MegaLLMUsage
