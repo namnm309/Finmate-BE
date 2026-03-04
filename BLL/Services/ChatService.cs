@@ -116,13 +116,10 @@ namespace BLL.Services
             var maxTokens = _configuration.GetValue<int>("MegaLLM:MaxTokens", 4096);
             var temperature = _configuration.GetValue<double>("MegaLLM:Temperature", 0.7);
 
-            // Dùng VisionModelId khi có ảnh (nếu được cấu hình), fallback về ModelId
+            // Dùng CÙNG ModelId cho text và vision (openai-gpt-oss-20b/120b đều hỗ trợ vision)
+            // Không tách VisionModelId riêng để tránh Azure config cũ (gpt-4o) gây 403
             var hasImage = !string.IsNullOrWhiteSpace(request.ImageBase64);
-            var configuredVisionModel = _configuration["MegaLLM:VisionModelId"];
-            var configuredTextModel = _configuration["MegaLLM:ModelId"] ?? "openai-gpt-oss-20b";
-            var modelId = hasImage && !string.IsNullOrWhiteSpace(configuredVisionModel)
-                ? configuredVisionModel
-                : configuredTextModel;
+            var modelId = _configuration["MegaLLM:ModelId"] ?? "openai-gpt-oss-20b";
 
             if (string.IsNullOrWhiteSpace(apiKey))
             {
