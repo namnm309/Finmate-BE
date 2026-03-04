@@ -26,5 +26,10 @@ namespace BLL.DTOs.Request
         /// Ảnh hóa đơn dạng base64 (dùng cho quét hóa đơn - vision)
         /// </summary>
         public string? ImageBase64 { get; set; }
+
+        /// <summary>
+        /// Định dạng ảnh: "png" hoặc "jpeg" (mặc định "jpeg")
+        /// </summary>
+        public string? ImageFormat { get; set; }
     }
 }

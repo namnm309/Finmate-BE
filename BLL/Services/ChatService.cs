@@ -163,8 +163,7 @@ namespace BLL.Services
                                 ["type"] = "image_url",
                                 ["image_url"] = new Dictionary<string, object>
                                 {
-                                    ["url"] = $"data:image/jpeg;base64,{request.ImageBase64}",
-                                    ["detail"] = "auto"
+                                    ["url"] = BuildImageDataUrl(request.ImageBase64!, request.ImageFormat)
                                 }
                             }
                         };
@@ -189,8 +188,7 @@ namespace BLL.Services
                         ["type"] = "image_url",
                         ["image_url"] = new Dictionary<string, object>
                         {
-                            ["url"] = $"data:image/jpeg;base64,{request.ImageBase64}",
-                            ["detail"] = "auto"
+                        ["url"] = BuildImageDataUrl(request.ImageBase64!, request.ImageFormat)
                         }
                     }
                 };
@@ -258,6 +256,12 @@ namespace BLL.Services
                 : null;
 
             return new ChatResponseDto { Content = text, Usage = usage };
+        }
+
+        private static string BuildImageDataUrl(string base64, string? format)
+        {
+            var mime = string.Equals(format, "png", StringComparison.OrdinalIgnoreCase) ? "image/png" : "image/jpeg";
+            return $"data:{mime};base64,{base64}";
         }
 
         #region Mega LLM (OpenAI-compatible) Models
