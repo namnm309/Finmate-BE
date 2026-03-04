@@ -71,7 +71,7 @@ namespace BLL.Services
         {
             var apiKey = _configuration["MegaLLM:ApiKey"];
             var baseUrl = _configuration["MegaLLM:BaseUrl"]?.TrimEnd('/') ?? "https://ai.megallm.io/v1";
-            var modelId = _configuration["MegaLLM:ModelId"] ?? "openai-gpt-oss-120b";
+            var modelId = _configuration["MegaLLM:ModelId"] ?? "openai-gpt-oss-20b";
 
             if (string.IsNullOrWhiteSpace(apiKey))
             {
@@ -119,7 +119,7 @@ namespace BLL.Services
             // Dùng VisionModelId khi có ảnh (nếu được cấu hình), fallback về ModelId
             var hasImage = !string.IsNullOrWhiteSpace(request.ImageBase64);
             var configuredVisionModel = _configuration["MegaLLM:VisionModelId"];
-            var configuredTextModel = _configuration["MegaLLM:ModelId"] ?? "openai-gpt-oss-120b";
+            var configuredTextModel = _configuration["MegaLLM:ModelId"] ?? "openai-gpt-oss-20b";
             var modelId = hasImage && !string.IsNullOrWhiteSpace(configuredVisionModel)
                 ? configuredVisionModel
                 : configuredTextModel;
