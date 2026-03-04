@@ -154,23 +154,21 @@ namespace BLL.Services
 
                     if (isLastUserMsg)
                     {
-                        // Message cuối cùng của user + có ảnh → vision message
-                        messages.Add(new MegaLLMVisionMessage
+                        // Vision message: OpenAI format chính xác [text, image_url]
+                        var visionContent = new List<object>
                         {
-                            Role = "user",
-                            Content = new List<object>
+                            new Dictionary<string, object> { ["type"] = "text", ["text"] = msg.Content ?? "" },
+                            new Dictionary<string, object>
                             {
-                                new MegaLLMTextPart { Text = msg.Content ?? "" },
-                                new MegaLLMImagePart
+                                ["type"] = "image_url",
+                                ["image_url"] = new Dictionary<string, object>
                                 {
-                                    ImageUrl = new MegaLLMImageUrl
-                                    {
-                                    Url = $"data:image/jpeg;base64,{request.ImageBase64}",
-                                    Detail = "auto"
+                                    ["url"] = $"data:image/jpeg;base64,{request.ImageBase64}",
+                                    ["detail"] = "auto"
                                 }
                             }
-                        }
-                    });
+                        };
+                        messages.Add(new MegaLLMVisionMessage { Role = "user", Content = visionContent });
                 }
                 else
                 {
@@ -183,32 +181,30 @@ namespace BLL.Services
             // Fallback: dùng Message đơn giản
             if (hasImage)
             {
-                messages.Add(new MegaLLMVisionMessage
+                var visionContent = new List<object>
                 {
-                    Role = "user",
-                    Content = new List<object>
+                    new Dictionary<string, object> { ["type"] = "text", ["text"] = request.Message },
+                    new Dictionary<string, object>
                     {
-                        new MegaLLMTextPart { Text = request.Message },
-                        new MegaLLMImagePart
+                        ["type"] = "image_url",
+                        ["image_url"] = new Dictionary<string, object>
                         {
-                            ImageUrl = new MegaLLMImageUrl
-                            {
-                                Url = $"data:image/jpeg;base64,{request.ImageBase64}",
-                                Detail = "auto"
-                            }
-                            }
+                            ["url"] = $"data:image/jpeg;base64,{request.ImageBase64}",
+                            ["detail"] = "auto"
                         }
-                    });
-                }
-                else
-                {
-                    messages.Add(new MegaLLMTextMessage { Role = "user", Content = request.Message });
-                }
+                    }
+                };
+                messages.Add(new MegaLLMVisionMessage { Role = "user", Content = visionContent });
             }
             else
             {
-                throw new ArgumentException("Message hoặc Messages không được để trống");
+                messages.Add(new MegaLLMTextMessage { Role = "user", Content = request.Message });
             }
+        }
+        else
+        {
+            throw new ArgumentException("Message hoặc Messages không được để trống");
+        }
 
             var megaRequest = new MegaLLMRequest
             {
@@ -220,7 +216,8 @@ namespace BLL.Services
 
             var url = $"{baseUrl}/chat/completions";
             var jsonBody = JsonSerializer.Serialize(megaRequest, JsonOptions);
-            _logger.LogInformation("Mega LLM request Model: {Model}, HasImage: {HasImage}, MessageCount: {Count}", modelId, hasImage, messages.Count);
+            _logger.LogInformation("Mega LLM request Model: {Model}, HasImage: {HasImage}, ImageBase64Len: {Len}, MessageCount: {Count}",
+                modelId, hasImage, hasImage ? (request.ImageBase64?.Length ?? 0) : 0, messages.Count);
 
             using var requestMessage = new HttpRequestMessage(HttpMethod.Post, url);
             requestMessage.Headers.Add("Authorization", $"Bearer {apiKey}");
