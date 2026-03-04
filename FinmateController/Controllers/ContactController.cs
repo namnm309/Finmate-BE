@@ -7,7 +7,7 @@ namespace FinmateController.Controllers
 {
     [ApiController]
     [Route("api/contacts")]
-    [Authorize(AuthenticationSchemes = "Clerk,Basic")]
+    [Authorize(AuthenticationSchemes = "Clerk")]
 
     public class ContactController : FinmateControllerBase
     {

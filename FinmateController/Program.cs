@@ -1,5 +1,3 @@
-using System.Security.Claims;
-using System.Text;
 using BLL.Services;
 using DAL.Data;
 using DAL.Repositories;
@@ -34,7 +32,7 @@ namespace FinmateController
                 {
                     Title = "Finmate API",
                     Version = "v1",
-                    Description = "Finmate Backend API (Clerk + Basic JWT)"
+                    Description = "Finmate Backend API (Clerk JWT)"
                 });
 
                 // Cấu hình nút Authorize với Bearer JWT
@@ -45,7 +43,7 @@ namespace FinmateController
                     Scheme = "bearer",
                     BearerFormat = "JWT",
                     In = ParameterLocation.Header,
-                    Description = "Nhập token dạng: Bearer {token}. Token có thể lấy từ /api/auth/login (Basic JWT) hoặc từ Clerk."
+                    Description = "Nhập Clerk JWT token dạng: Bearer {token}."
                 };
 
                 c.AddSecurityDefinition("Bearer", securityScheme);
@@ -74,17 +72,11 @@ namespace FinmateController
                 });
 
             // =======================
-            // Auth: Clerk (giữ nguyên) + Basic (username/password)
+            // Auth: Clerk JWT (OIDC)
             // =======================
-            // Clerk JWT (OIDC metadata)
             var clerkInstanceUrl = builder.Configuration["Clerk:InstanceUrl"]
                                    ?? throw new InvalidOperationException("Clerk:InstanceUrl is not configured");
             var metadataAddress = $"{clerkInstanceUrl}/.well-known/openid-configuration";
-
-            // Basic JWT (HS256) - chỉ dùng cho /api/auth/login trả token basic
-            var basicJwtSecret = builder.Configuration["Jwt:SecretKey"]; // có thể cấu hình bằng AppSettings / env var
-            var basicJwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "FinmateAPI";
-            var basicJwtAudience = builder.Configuration["Jwt:Audience"] ?? "FinmateClient";
 
             builder.Services
                 .AddAuthentication(options =>
@@ -92,7 +84,6 @@ namespace FinmateController
                     options.DefaultAuthenticateScheme = "Clerk";
                     options.DefaultChallengeScheme = "Clerk";
                 })
-                // Default giữ Clerk để không ảnh hưởng các endpoint cũ
                 .AddJwtBearer("Clerk", options =>
                 {
                     options.MetadataAddress = metadataAddress;
@@ -104,23 +95,6 @@ namespace FinmateController
                         ValidateLifetime = true,
                         ValidateIssuerSigningKey = true,
                         NameClaimType = "sub"
-                    };
-                })
-                // Scheme Basic chỉ bật nếu có SecretKey (tránh crash khi deploy)
-                .AddJwtBearer("Basic", options =>
-                {
-                    options.TokenValidationParameters = new TokenValidationParameters
-                    {
-                        ValidateIssuer = true,
-                        ValidIssuer = basicJwtIssuer,
-                        ValidateAudience = true,
-                        ValidAudience = basicJwtAudience,
-                        ValidateLifetime = true,
-                        ValidateIssuerSigningKey = true,
-                        IssuerSigningKey = string.IsNullOrWhiteSpace(basicJwtSecret)
-                            ? new SymmetricSecurityKey(Encoding.UTF8.GetBytes("00000000000000000000000000000000"))
-                            : new SymmetricSecurityKey(Encoding.UTF8.GetBytes(basicJwtSecret)),
-                        NameClaimType = ClaimTypes.NameIdentifier
                     };
                 });
 
@@ -159,7 +133,6 @@ namespace FinmateController
 
             // Services
             builder.Services.AddScoped<UserService>();
-            builder.Services.AddScoped<AuthService>(); // basic register/login service
             builder.Services.AddScoped<AccountTypeService>();
             builder.Services.AddScoped<CurrencyService>();
             builder.Services.AddScoped<MoneySourceService>();

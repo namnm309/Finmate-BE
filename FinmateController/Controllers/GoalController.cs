@@ -9,7 +9,7 @@ namespace FinmateController.Controllers
 {
     [ApiController]
     [Route("api/goals")]
-    [Authorize(AuthenticationSchemes = "Clerk,Basic")]
+    [Authorize(AuthenticationSchemes = "Clerk")]
     public class GoalController : ControllerBase
     {
         private readonly GoalService _goalService;

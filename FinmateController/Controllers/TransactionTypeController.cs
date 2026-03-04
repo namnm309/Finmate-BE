@@ -6,7 +6,7 @@ namespace FinmateController.Controllers
 {
     [ApiController]
     [Route("api/transaction-types")]
-    [Authorize(AuthenticationSchemes = "Clerk,Basic")]
+    [Authorize(AuthenticationSchemes = "Clerk")]
     public class TransactionTypeController : ControllerBase
     {
         private readonly TransactionTypeService _transactionTypeService;

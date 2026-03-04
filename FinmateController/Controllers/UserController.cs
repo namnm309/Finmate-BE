@@ -9,7 +9,7 @@ namespace FinmateController.Controllers
 {
     [ApiController]
     [Route("api/users")]
-    [Authorize(AuthenticationSchemes = "Clerk,Basic")]
+    [Authorize(AuthenticationSchemes = "Clerk")]
 
     public class UserController : ControllerBase
     {

@@ -6,7 +6,7 @@ namespace FinmateController.Controllers
 {
     [ApiController]
     [Route("api/account-types")]
-    [Authorize(AuthenticationSchemes = "Clerk,Basic")]
+    [Authorize(AuthenticationSchemes = "Clerk")]
     public class AccountTypeController : ControllerBase
     {
         private readonly AccountTypeService _accountTypeService;

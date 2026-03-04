@@ -6,7 +6,7 @@ namespace FinmateController.Controllers
 {
     [ApiController]
     [Route("api/currencies")]
-    [Authorize(AuthenticationSchemes = "Clerk,Basic")]
+    [Authorize(AuthenticationSchemes = "Clerk")]
     public class CurrencyController : ControllerBase
     {
         private readonly CurrencyService _currencyService;

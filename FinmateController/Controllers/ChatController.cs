@@ -10,7 +10,7 @@ namespace FinmateController.Controllers
     /// </summary>
     [ApiController]
     [Route("api/chat")]
-    [Authorize(AuthenticationSchemes = "Clerk,Basic")]
+    [Authorize(AuthenticationSchemes = "Clerk")]
     public class ChatController : FinmateControllerBase
     {
         private readonly ChatService _chatService;
