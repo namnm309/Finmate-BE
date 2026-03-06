@@ -50,6 +50,7 @@ namespace BLL.Services
 
             var goal = new Goal
             {
+                Id = Guid.NewGuid(),
                 UserId = userId,
                 Title = request.Title,
                 Description = request.Description,

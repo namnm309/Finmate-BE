@@ -1,6 +1,7 @@
 using BLL.DTOs.Request;
 using BLL.DTOs.Response;
 using BLL.Services;
+using FinmateController.Helpers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -40,8 +41,8 @@ namespace FinmateController.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting goals");
-                return StatusCode(500, new { message = "Internal server error" });
+                var body = ApiErrorHelper.Build500Response(ex, _logger, "GetAll");
+                return StatusCode(500, body);
             }
         }
 
@@ -66,8 +67,8 @@ namespace FinmateController.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting goal");
-                return StatusCode(500, new { message = "Internal server error" });
+                var body = ApiErrorHelper.Build500Response(ex, _logger, "GetById");
+                return StatusCode(500, body);
             }
         }
 
@@ -96,8 +97,8 @@ namespace FinmateController.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error creating goal");
-                return StatusCode(500, new { message = "Internal server error" });
+                var body = ApiErrorHelper.Build500Response(ex, _logger, "Create");
+                return StatusCode(500, body);
             }
         }
 
@@ -127,8 +128,8 @@ namespace FinmateController.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error updating goal");
-                return StatusCode(500, new { message = "Internal server error" });
+                var body = ApiErrorHelper.Build500Response(ex, _logger, "Update");
+                return StatusCode(500, body);
             }
         }
 
@@ -153,8 +154,8 @@ namespace FinmateController.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error deleting goal");
-                return StatusCode(500, new { message = "Internal server error" });
+                var body = ApiErrorHelper.Build500Response(ex, _logger, "Delete");
+                return StatusCode(500, body);
             }
         }
     }
