@@ -3,19 +3,22 @@ using BLL.DTOs.Response;
 using BLL.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Security.Claims;
 
 namespace FinmateController.Controllers
 {
     [ApiController]
     [Route("api/goals")]
     [Authorize(AuthenticationSchemes = "Clerk")]
-    public class GoalController : ControllerBase
+    public class GoalController : FinmateControllerBase
     {
         private readonly GoalService _goalService;
         private readonly ILogger<GoalController> _logger;
 
-        public GoalController(GoalService goalService, ILogger<GoalController> logger)
+        public GoalController(
+            GoalService goalService,
+            UserService userService,
+            ILogger<GoalController> logger)
+            : base(userService)
         {
             _goalService = goalService;
             _logger = logger;
@@ -26,8 +29,8 @@ namespace FinmateController.Controllers
         {
             try
             {
-                var userId = GetUserId();
-                if (userId == null)
+                var userId = await GetCurrentUserIdAsync();
+                if (!userId.HasValue)
                 {
                     return Unauthorized(new { message = "User not authenticated" });
                 }
@@ -47,8 +50,8 @@ namespace FinmateController.Controllers
         {
             try
             {
-                var userId = GetUserId();
-                if (userId == null)
+                var userId = await GetCurrentUserIdAsync();
+                if (!userId.HasValue)
                 {
                     return Unauthorized(new { message = "User not authenticated" });
                 }
@@ -78,8 +81,8 @@ namespace FinmateController.Controllers
                     return BadRequest(ModelState);
                 }
 
-                var userId = GetUserId();
-                if (userId == null)
+                var userId = await GetCurrentUserIdAsync();
+                if (!userId.HasValue)
                 {
                     return Unauthorized(new { message = "User not authenticated" });
                 }
@@ -108,8 +111,8 @@ namespace FinmateController.Controllers
                     return BadRequest(ModelState);
                 }
 
-                var userId = GetUserId();
-                if (userId == null)
+                var userId = await GetCurrentUserIdAsync();
+                if (!userId.HasValue)
                 {
                     return Unauthorized(new { message = "User not authenticated" });
                 }
@@ -134,8 +137,8 @@ namespace FinmateController.Controllers
         {
             try
             {
-                var userId = GetUserId();
-                if (userId == null)
+                var userId = await GetCurrentUserIdAsync();
+                if (!userId.HasValue)
                 {
                     return Unauthorized(new { message = "User not authenticated" });
                 }
@@ -153,20 +156,6 @@ namespace FinmateController.Controllers
                 _logger.LogError(ex, "Error deleting goal");
                 return StatusCode(500, new { message = "Internal server error" });
             }
-        }
-
-        private Guid? GetUserId()
-        {
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-                ?? User.FindFirst("userId")?.Value
-                ?? User.FindFirst("sub")?.Value;
-
-            if (Guid.TryParse(userIdClaim, out var userId))
-            {
-                return userId;
-            }
-
-            return null;
         }
     }
 }
