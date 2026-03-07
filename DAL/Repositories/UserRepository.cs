@@ -15,8 +15,10 @@ namespace DAL.Repositories
 
         public async Task<Users?> GetByClerkUserIdAsync(string clerkUserId)
         {
+            if (string.IsNullOrWhiteSpace(clerkUserId)) return null;
+            var normalized = clerkUserId.Trim();
             return await _context.Users
-                .FirstOrDefaultAsync(u => u.ClerkUserId == clerkUserId);
+                .FirstOrDefaultAsync(u => u.ClerkUserId != null && u.ClerkUserId.Trim() == normalized);
         }
 
         public async Task<Users?> GetByIdAsync(Guid id)

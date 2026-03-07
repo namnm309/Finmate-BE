@@ -31,9 +31,11 @@ namespace BLL.Services
             
             if (user != null)
             {
+                _logger.LogInformation("[Auth] GetOrCreateUserFromClerk: Found existing user ClerkId={ClerkId}, UserId={UserId}", clerkUserId, user.Id);
                 return MapToDto(user);
             }
 
+            _logger.LogWarning("[Auth] GetOrCreateUserFromClerk: User NOT found for ClerkId={ClerkId}, creating new user - nếu đã từng có mục tiêu thì có thể mất vì UserId mới", clerkUserId);
             // Nếu chưa có, lấy từ Clerk API và tạo mới
             var clerkUser = await _clerkService.GetUserByIdAsync(clerkUserId);
             if (clerkUser == null)

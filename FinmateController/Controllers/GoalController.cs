@@ -33,10 +33,12 @@ namespace FinmateController.Controllers
                 var userId = await GetCurrentUserIdAsync();
                 if (!userId.HasValue)
                 {
+                    _logger.LogWarning("[Goals] GetAll: User not authenticated - GetCurrentUserIdAsync returned null");
                     return Unauthorized(new { message = "User not authenticated" });
                 }
 
                 var goals = await _goalService.GetAllByUserIdAsync(userId.Value);
+                _logger.LogInformation("[Goals] GetAll: UserId={UserId}, Count={Count}", userId.Value, goals.Count);
                 return Ok(goals);
             }
             catch (Exception ex)
