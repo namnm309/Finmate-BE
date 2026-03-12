@@ -31,5 +31,10 @@ namespace BLL.DTOs.Request
         /// Định dạng ảnh: "png" hoặc "jpeg" (mặc định "jpeg")
         /// </summary>
         public string? ImageFormat { get; set; }
+
+        /// <summary>
+        /// Model tùy chọn để override khi test hoặc ép dùng model cụ thể.
+        /// </summary>
+        public string? Model { get; set; }
     }
 }

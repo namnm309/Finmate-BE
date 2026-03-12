@@ -67,15 +67,16 @@ namespace BLL.Services
         /// <summary>
         /// Kiểm tra cấu hình Mega LLM (OpenAI-compatible)
         /// </summary>
-        public async Task<(bool ApiKeyConfigured, string Provider, string BaseUrl, string ModelId, string? TestError)> GetDiagnosticAsync(CancellationToken cancellationToken = default)
+        public async Task<(bool ApiKeyConfigured, string Provider, string BaseUrl, string ModelId, string VisionModelId, string? TestError)> GetDiagnosticAsync(CancellationToken cancellationToken = default)
         {
             var apiKey = _configuration["MegaLLM:ApiKey"];
             var baseUrl = _configuration["MegaLLM:BaseUrl"]?.TrimEnd('/') ?? "https://ai.megallm.io/v1";
             var modelId = _configuration["MegaLLM:ModelId"] ?? "openai-gpt-oss-20b";
+            var visionModelId = _configuration["MegaLLM:VisionModelId"] ?? "alibaba-qwen3.5-397b";
 
             if (string.IsNullOrWhiteSpace(apiKey))
             {
-                return (false, "MegaLLM", baseUrl, modelId, "MegaLLM:ApiKey chưa được cấu hình.");
+                return (false, "MegaLLM", baseUrl, modelId, visionModelId, "MegaLLM:ApiKey chưa được cấu hình.");
             }
 
             try
@@ -95,13 +96,13 @@ namespace BLL.Services
                 if (!response.IsSuccessStatusCode)
                 {
                     var err = await response.Content.ReadAsStringAsync(cancellationToken);
-                    return (true, "MegaLLM", baseUrl, modelId, $"Mega LLM trả {(int)response.StatusCode}: {err}");
+                    return (true, "MegaLLM", baseUrl, modelId, visionModelId, $"Mega LLM trả {(int)response.StatusCode}: {err}");
                 }
-                return (true, "MegaLLM", baseUrl, modelId, null);
+                return (true, "MegaLLM", baseUrl, modelId, visionModelId, null);
             }
             catch (Exception ex)
             {
-                return (true, "MegaLLM", baseUrl, modelId, ex.Message);
+                return (true, "MegaLLM", baseUrl, modelId, visionModelId, ex.Message);
             }
         }
 
@@ -116,10 +117,13 @@ namespace BLL.Services
             var maxTokens = _configuration.GetValue<int>("MegaLLM:MaxTokens", 4096);
             var temperature = _configuration.GetValue<double>("MegaLLM:Temperature", 0.7);
 
-            // Dùng CÙNG ModelId cho text và vision (openai-gpt-oss-20b/120b đều hỗ trợ vision)
-            // Không tách VisionModelId riêng để tránh Azure config cũ (gpt-4o) gây 403
             var hasImage = !string.IsNullOrWhiteSpace(request.ImageBase64);
-            var modelId = _configuration["MegaLLM:ModelId"] ?? "openai-gpt-oss-20b";
+            var textModelId = _configuration["MegaLLM:ModelId"] ?? "openai-gpt-oss-20b";
+            var visionModelId = _configuration["MegaLLM:VisionModelId"] ?? "alibaba-qwen3.5-397b";
+            var requestModel = request.Model?.Trim();
+            var modelId = !string.IsNullOrWhiteSpace(requestModel)
+                ? requestModel
+                : (hasImage ? visionModelId : textModelId);
 
             if (string.IsNullOrWhiteSpace(apiKey))
             {
@@ -163,46 +167,48 @@ namespace BLL.Services
                                 ["type"] = "image_url",
                                 ["image_url"] = new Dictionary<string, object>
                                 {
-                                    ["url"] = BuildImageDataUrl(request.ImageBase64!, request.ImageFormat)
+                                    ["url"] = BuildImageDataUrl(request.ImageBase64!, request.ImageFormat),
+                                    ["detail"] = "high"
                                 }
                             }
                         };
                         messages.Add(new MegaLLMVisionMessage { Role = "user", Content = visionContent });
+                    }
+                    else
+                    {
+                        messages.Add(new MegaLLMTextMessage { Role = msg.Role ?? "user", Content = msg.Content ?? "" });
+                    }
+                }
+            }
+            else if (!string.IsNullOrWhiteSpace(request.Message))
+            {
+                // Fallback: dùng Message đơn giản
+                if (hasImage)
+                {
+                    var visionContent = new List<object>
+                    {
+                        new Dictionary<string, object> { ["type"] = "text", ["text"] = request.Message },
+                        new Dictionary<string, object>
+                        {
+                            ["type"] = "image_url",
+                            ["image_url"] = new Dictionary<string, object>
+                            {
+                                ["url"] = BuildImageDataUrl(request.ImageBase64!, request.ImageFormat),
+                                ["detail"] = "high"
+                            }
+                        }
+                    };
+                    messages.Add(new MegaLLMVisionMessage { Role = "user", Content = visionContent });
                 }
                 else
                 {
-                    messages.Add(new MegaLLMTextMessage { Role = msg.Role ?? "user", Content = msg.Content ?? "" });
+                    messages.Add(new MegaLLMTextMessage { Role = "user", Content = request.Message });
                 }
-            }
-        }
-        else if (!string.IsNullOrWhiteSpace(request.Message))
-        {
-            // Fallback: dùng Message đơn giản
-            if (hasImage)
-            {
-                var visionContent = new List<object>
-                {
-                    new Dictionary<string, object> { ["type"] = "text", ["text"] = request.Message },
-                    new Dictionary<string, object>
-                    {
-                        ["type"] = "image_url",
-                        ["image_url"] = new Dictionary<string, object>
-                        {
-                        ["url"] = BuildImageDataUrl(request.ImageBase64!, request.ImageFormat)
-                        }
-                    }
-                };
-                messages.Add(new MegaLLMVisionMessage { Role = "user", Content = visionContent });
             }
             else
             {
-                messages.Add(new MegaLLMTextMessage { Role = "user", Content = request.Message });
+                throw new ArgumentException("Message hoặc Messages không được để trống");
             }
-        }
-        else
-        {
-            throw new ArgumentException("Message hoặc Messages không được để trống");
-        }
 
             var megaRequest = new MegaLLMRequest
             {
@@ -214,8 +220,8 @@ namespace BLL.Services
 
             var url = $"{baseUrl}/chat/completions";
             var jsonBody = JsonSerializer.Serialize(megaRequest, JsonOptions);
-            _logger.LogInformation("Mega LLM request Model: {Model}, HasImage: {HasImage}, ImageBase64Len: {Len}, MessageCount: {Count}",
-                modelId, hasImage, hasImage ? (request.ImageBase64?.Length ?? 0) : 0, messages.Count);
+            _logger.LogInformation("Mega LLM request Model: {Model}, TextModel: {TextModel}, VisionModel: {VisionModel}, HasImage: {HasImage}, ImageBase64Len: {Len}, MessageCount: {Count}",
+                modelId, textModelId, visionModelId, hasImage, hasImage ? (request.ImageBase64?.Length ?? 0) : 0, messages.Count);
 
             using var requestMessage = new HttpRequestMessage(HttpMethod.Post, url);
             requestMessage.Headers.Add("Authorization", $"Bearer {apiKey}");
