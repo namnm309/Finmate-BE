@@ -3,6 +3,7 @@ using System;
 using DAL.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace DAL.Migrations
 {
     [DbContext(typeof(FinmateContext))]
-    partial class FinmateContextModelSnapshot : ModelSnapshot
+    [Migration("20260314181523_Update")]
+    partial class Update
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -159,162 +162,6 @@ namespace DAL.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("tbl_categories");
-                });
-
-            modelBuilder.Entity("DAL.Models.CommunityPost", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Category")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<int>("CommentsCount")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Content")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("LastLoginAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("LikesCount")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("SharesCount")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CreatedAt")
-                        .HasDatabaseName("IX_CommunityPosts_CreatedAt");
-
-                    b.HasIndex("LikesCount")
-                        .HasDatabaseName("IX_CommunityPosts_LikesCount");
-
-                    b.HasIndex("UserId")
-                        .HasDatabaseName("IX_CommunityPosts_UserId");
-
-                    b.ToTable("tbl_community_posts");
-                });
-
-            modelBuilder.Entity("DAL.Models.CommunityPostBookmark", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("LastLoginAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("PostId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId");
-
-                    b.HasIndex("PostId", "UserId")
-                        .IsUnique()
-                        .HasDatabaseName("IX_CommunityPostBookmarks_PostId_UserId");
-
-                    b.ToTable("tbl_community_post_bookmarks");
-                });
-
-            modelBuilder.Entity("DAL.Models.CommunityPostComment", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Content")
-                        .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("LastLoginAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("ParentCommentId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("PostId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ParentCommentId");
-
-                    b.HasIndex("PostId")
-                        .HasDatabaseName("IX_CommunityPostComments_PostId");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("tbl_community_post_comments");
-                });
-
-            modelBuilder.Entity("DAL.Models.CommunityPostLike", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("LastLoginAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("PostId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId");
-
-                    b.HasIndex("PostId", "UserId")
-                        .IsUnique()
-                        .HasDatabaseName("IX_CommunityPostLikes_PostId_UserId");
-
-                    b.ToTable("tbl_community_post_likes");
                 });
 
             modelBuilder.Entity("DAL.Models.Contact", b =>
@@ -943,81 +790,6 @@ namespace DAL.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("DAL.Models.CommunityPost", b =>
-                {
-                    b.HasOne("DAL.Models.Users", "User")
-                        .WithMany("CommunityPosts")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("DAL.Models.CommunityPostBookmark", b =>
-                {
-                    b.HasOne("DAL.Models.CommunityPost", "Post")
-                        .WithMany("Bookmarks")
-                        .HasForeignKey("PostId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("DAL.Models.Users", "User")
-                        .WithMany("CommunityPostBookmarks")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Post");
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("DAL.Models.CommunityPostComment", b =>
-                {
-                    b.HasOne("DAL.Models.CommunityPostComment", "ParentComment")
-                        .WithMany("Replies")
-                        .HasForeignKey("ParentCommentId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("DAL.Models.CommunityPost", "Post")
-                        .WithMany("Comments")
-                        .HasForeignKey("PostId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("DAL.Models.Users", "User")
-                        .WithMany("CommunityPostComments")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("ParentComment");
-
-                    b.Navigation("Post");
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("DAL.Models.CommunityPostLike", b =>
-                {
-                    b.HasOne("DAL.Models.CommunityPost", "Post")
-                        .WithMany("Likes")
-                        .HasForeignKey("PostId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("DAL.Models.Users", "User")
-                        .WithMany("CommunityPostLikes")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Post");
-
-                    b.Navigation("User");
-                });
-
             modelBuilder.Entity("DAL.Models.Contact", b =>
                 {
                     b.HasOne("DAL.Models.Users", "User")
@@ -1124,20 +896,6 @@ namespace DAL.Migrations
                     b.Navigation("Transactions");
                 });
 
-            modelBuilder.Entity("DAL.Models.CommunityPost", b =>
-                {
-                    b.Navigation("Bookmarks");
-
-                    b.Navigation("Comments");
-
-                    b.Navigation("Likes");
-                });
-
-            modelBuilder.Entity("DAL.Models.CommunityPostComment", b =>
-                {
-                    b.Navigation("Replies");
-                });
-
             modelBuilder.Entity("DAL.Models.Contact", b =>
                 {
                     b.Navigation("Transactions");
@@ -1158,14 +916,6 @@ namespace DAL.Migrations
             modelBuilder.Entity("DAL.Models.Users", b =>
                 {
                     b.Navigation("Categories");
-
-                    b.Navigation("CommunityPostBookmarks");
-
-                    b.Navigation("CommunityPostComments");
-
-                    b.Navigation("CommunityPostLikes");
-
-                    b.Navigation("CommunityPosts");
 
                     b.Navigation("Contacts");
 

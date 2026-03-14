@@ -33,6 +33,10 @@ namespace DAL.Data
         public DbSet<Currency> Currencies { get; set; }
         public DbSet<Goal> Goals { get; set; }
         public DbSet<PremiumSubscription> PremiumSubscriptions { get; set; }
+        public DbSet<CommunityPost> CommunityPosts { get; set; }
+        public DbSet<CommunityPostLike> CommunityPostLikes { get; set; }
+        public DbSet<CommunityPostBookmark> CommunityPostBookmarks { get; set; }
+        public DbSet<CommunityPostComment> CommunityPostComments { get; set; }
 
         //Nếu muốn cấu hình chi tiết thêm thì overrive OnModelCreating
         //Nếu đã sử dụng [] trc các attribute thì có thể ko cần method này 
@@ -72,6 +76,26 @@ namespace DAL.Data
                 entity.HasMany(u => u.PremiumSubscriptions)
                     .WithOne(p => p.User)
                     .HasForeignKey(p => p.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasMany(u => u.CommunityPosts)
+                    .WithOne(p => p.User)
+                    .HasForeignKey(p => p.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasMany(u => u.CommunityPostLikes)
+                    .WithOne(l => l.User)
+                    .HasForeignKey(l => l.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasMany(u => u.CommunityPostBookmarks)
+                    .WithOne(b => b.User)
+                    .HasForeignKey(b => b.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasMany(u => u.CommunityPostComments)
+                    .WithOne(c => c.User)
+                    .HasForeignKey(c => c.UserId)
                     .OnDelete(DeleteBehavior.Cascade);
             });
 
@@ -143,6 +167,71 @@ namespace DAL.Data
 
                 entity.HasIndex(p => p.ExpiresAt)
                     .HasDatabaseName("IX_PremiumSubscriptions_ExpiresAt");
+            });
+
+            // CommunityPost configuration
+            modelBuilder.Entity<CommunityPost>(entity =>
+            {
+                entity.Property(p => p.Category)
+                    .HasMaxLength(50);
+
+                entity.Property(p => p.Content)
+                    .HasMaxLength(2000);
+
+                entity.HasIndex(p => p.CreatedAt)
+                    .HasDatabaseName("IX_CommunityPosts_CreatedAt");
+
+                entity.HasIndex(p => p.LikesCount)
+                    .HasDatabaseName("IX_CommunityPosts_LikesCount");
+
+                entity.HasIndex(p => p.UserId)
+                    .HasDatabaseName("IX_CommunityPosts_UserId");
+            });
+
+            // CommunityPostLike configuration
+            modelBuilder.Entity<CommunityPostLike>(entity =>
+            {
+                entity.HasIndex(l => new { l.PostId, l.UserId })
+                    .IsUnique()
+                    .HasDatabaseName("IX_CommunityPostLikes_PostId_UserId");
+
+                entity.HasOne(l => l.Post)
+                    .WithMany(p => p.Likes)
+                    .HasForeignKey(l => l.PostId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // CommunityPostBookmark configuration
+            modelBuilder.Entity<CommunityPostBookmark>(entity =>
+            {
+                entity.HasIndex(b => new { b.PostId, b.UserId })
+                    .IsUnique()
+                    .HasDatabaseName("IX_CommunityPostBookmarks_PostId_UserId");
+
+                entity.HasOne(b => b.Post)
+                    .WithMany(p => p.Bookmarks)
+                    .HasForeignKey(b => b.PostId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // CommunityPostComment configuration
+            modelBuilder.Entity<CommunityPostComment>(entity =>
+            {
+                entity.Property(c => c.Content)
+                    .HasMaxLength(1000);
+
+                entity.HasIndex(c => c.PostId)
+                    .HasDatabaseName("IX_CommunityPostComments_PostId");
+
+                entity.HasOne(c => c.Post)
+                    .WithMany(p => p.Comments)
+                    .HasForeignKey(c => c.PostId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(c => c.ParentComment)
+                    .WithMany(c => c.Replies)
+                    .HasForeignKey(c => c.ParentCommentId)
+                    .OnDelete(DeleteBehavior.Restrict);
             });
 
             // Transaction configuration
