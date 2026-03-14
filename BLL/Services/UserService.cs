@@ -22,11 +22,12 @@ namespace BLL.Services
         }
 
         /// <summary>
-        /// Lấy hoặc tạo user từ Clerk ID
+        /// Lấy hoặc tạo user từ Clerk ID.
+        /// Ưu tiên tìm theo ClerkId, sau đó merge theo Email nếu đã có user với email đó.
         /// </summary>
         public async Task<UserResponseDto?> GetOrCreateUserFromClerkAsync(string clerkUserId)
         {
-            // Kiểm tra user đã tồn tại trong database chưa
+            // Bước 1: Kiểm tra user đã tồn tại theo ClerkUserId
             var user = await _userRepository.GetByClerkUserIdAsync(clerkUserId);
             
             if (user != null)
@@ -35,15 +36,61 @@ namespace BLL.Services
                 return MapToDto(user);
             }
 
-            _logger.LogWarning("[Auth] GetOrCreateUserFromClerk: User NOT found for ClerkId={ClerkId}, creating new user - nếu đã từng có mục tiêu thì có thể mất vì UserId mới", clerkUserId);
-            // Nếu chưa có, lấy từ Clerk API và tạo mới
+            // Bước 2: Không tìm thấy theo ClerkId, lấy thông tin từ Clerk API
+            _logger.LogInformation("[Auth] GetOrCreateUserFromClerk: User NOT found for ClerkId={ClerkId}, checking Clerk API", clerkUserId);
             var clerkUser = await _clerkService.GetUserByIdAsync(clerkUserId);
             if (clerkUser == null)
             {
+                _logger.LogWarning("[Auth] GetOrCreateUserFromClerk: Clerk user not found for ClerkId={ClerkId}", clerkUserId);
                 return null;
             }
 
-            // Tạo user mới
+            // Bước 3: Lấy email từ Clerk user và chuẩn hóa
+            var primaryEmail = clerkUser.GetPrimaryEmail();
+            var normalizedEmail = NormalizeEmail(primaryEmail);
+
+            // Bước 4: Nếu có email hợp lệ (không phải placeholder), tìm user theo email
+            if (!string.IsNullOrEmpty(normalizedEmail) && !IsPlaceholderEmail(primaryEmail))
+            {
+                var existingUserByEmail = await _userRepository.GetByEmailNormalizedAsync(normalizedEmail);
+                
+                if (existingUserByEmail != null)
+                {
+                    // Merge: Cập nhật ClerkUserId và thông tin khác vào user hiện có
+                    _logger.LogWarning(
+                        "[Auth] GetOrCreateUserFromClerk: Merge user by email. ExistingUserId={UserId}, OldClerkId={OldClerkId}, NewClerkId={NewClerkId}, Email={Email}",
+                        existingUserByEmail.Id, 
+                        existingUserByEmail.ClerkUserId ?? "(null)", 
+                        clerkUserId, 
+                        normalizedEmail
+                    );
+
+                    existingUserByEmail.ClerkUserId = clerkUserId;
+                    
+                    // Cập nhật thông tin từ Clerk nếu có
+                    if (!string.IsNullOrWhiteSpace(primaryEmail))
+                    {
+                        existingUserByEmail.Email = primaryEmail;
+                    }
+
+                    var fullName = $"{clerkUser.FirstName ?? ""} {clerkUser.LastName ?? ""}".Trim();
+                    if (!string.IsNullOrEmpty(fullName))
+                    {
+                        existingUserByEmail.FullName = fullName;
+                    }
+
+                    existingUserByEmail.PhoneNumber = clerkUser.PhoneNumber ?? existingUserByEmail.PhoneNumber ?? "";
+                    existingUserByEmail.AvatarUrl = clerkUser.ImageUrl ?? existingUserByEmail.AvatarUrl ?? "";
+                    existingUserByEmail.UpdatedAt = clerkUser.GetUpdatedAtDateTime() ?? DateTime.UtcNow;
+                    existingUserByEmail.LastLoginAt = clerkUser.GetLastSignInAtDateTime() ?? existingUserByEmail.LastLoginAt;
+
+                    var updatedUser = await _userRepository.UpdateAsync(existingUserByEmail);
+                    return MapToDto(updatedUser);
+                }
+            }
+
+            // Bước 5: Không có user theo ClerkId và không có user theo Email, tạo mới
+            _logger.LogInformation("[Auth] GetOrCreateUserFromClerk: Creating new user for ClerkId={ClerkId}, Email={Email}", clerkUserId, normalizedEmail ?? "(no email)");
             var newUser = await CreateUserFromClerkAsync(clerkUser);
             return MapToDto(newUser);
         }
@@ -67,19 +114,66 @@ namespace BLL.Services
         }
 
         /// <summary>
-        /// Tạo user từ Clerk info
+        /// Tạo user từ Clerk info.
+        /// Kiểm tra lần cuối cùng xem user đã tồn tại chưa (race condition protection).
         /// </summary>
         public async Task<Users> CreateUserFromClerkAsync(ClerkUserInfo clerkUser)
         {
-            // Đảm bảo FullName không rỗng
-            var fullName = $"{clerkUser.FirstName ?? ""} {clerkUser.LastName ?? ""}".Trim();
-            if (string.IsNullOrEmpty(fullName))
+            // Kiểm tra lần cuối cùng trước khi tạo mới (race condition protection)
+            if (!string.IsNullOrWhiteSpace(clerkUser.Id))
             {
-                fullName = clerkUser.GetPrimaryEmail()?.Split('@')[0] ?? "User";
+                var existingByClerkId = await _userRepository.GetByClerkUserIdAsync(clerkUser.Id);
+                if (existingByClerkId != null)
+                {
+                    _logger.LogWarning(
+                        "[Auth] CreateUserFromClerk: Race condition detected - user already exists by ClerkId={ClerkId}. Returning existing user.",
+                        clerkUser.Id
+                    );
+                    return existingByClerkId;
+                }
+            }
+
+            var email = clerkUser.GetPrimaryEmail();
+            var normalizedEmail = NormalizeEmail(email);
+
+            if (!string.IsNullOrEmpty(normalizedEmail) && !string.IsNullOrWhiteSpace(email) && 
+                !email.EndsWith("@placeholder.local", StringComparison.OrdinalIgnoreCase))
+            {
+                var existingByEmail = await _userRepository.GetByEmailNormalizedAsync(normalizedEmail);
+                if (existingByEmail != null)
+                {
+                    _logger.LogWarning(
+                        "[Auth] CreateUserFromClerk: Race condition detected - user already exists by Email={Email}. Merging ClerkId.",
+                        normalizedEmail
+                    );
+                    
+                    // Merge ClerkId vào user hiện có
+                    existingByEmail.ClerkUserId = clerkUser.Id;
+                    
+                    var fullName = $"{clerkUser.FirstName ?? ""} {clerkUser.LastName ?? ""}".Trim();
+                    if (!string.IsNullOrEmpty(fullName))
+                    {
+                        existingByEmail.FullName = fullName;
+                    }
+                    
+                    existingByEmail.PhoneNumber = clerkUser.PhoneNumber ?? existingByEmail.PhoneNumber ?? "";
+                    existingByEmail.AvatarUrl = clerkUser.ImageUrl ?? existingByEmail.AvatarUrl ?? "";
+                    existingByEmail.UpdatedAt = clerkUser.GetUpdatedAtDateTime() ?? DateTime.UtcNow;
+                    existingByEmail.LastLoginAt = clerkUser.GetLastSignInAtDateTime() ?? existingByEmail.LastLoginAt;
+                    
+                    await _userRepository.UpdateAsync(existingByEmail);
+                    return existingByEmail;
+                }
+            }
+
+            // Đảm bảo FullName không rỗng
+            var fullNameNew = $"{clerkUser.FirstName ?? ""} {clerkUser.LastName ?? ""}".Trim();
+            if (string.IsNullOrEmpty(fullNameNew))
+            {
+                fullNameNew = clerkUser.GetPrimaryEmail()?.Split('@')[0] ?? "User";
             }
 
             // Đảm bảo Email không bao giờ empty string - dùng placeholder nếu không có
-            var email = clerkUser.GetPrimaryEmail();
             if (string.IsNullOrWhiteSpace(email))
             {
                 var clerkUserId = clerkUser.Id ?? Guid.NewGuid().ToString();
@@ -92,7 +186,7 @@ namespace BLL.Services
             {
                 ClerkUserId = clerkUser.Id,
                 Email = email,
-                FullName = fullName,
+                FullName = fullNameNew,
                 PhoneNumber = clerkUser.PhoneNumber ?? "",
                 AvatarUrl = clerkUser.ImageUrl ?? "",
                 PasswordHash = "", // Clerk users không cần password
@@ -119,6 +213,24 @@ namespace BLL.Services
             {
                 _logger.LogError(dbEx, "Database error saving user. ClerkId: {ClerkId}, Email: {Email}, FullName: {FullName}. Error: {Error}", 
                     user.ClerkUserId, user.Email, user.FullName, dbEx.Message);
+                
+                // Nếu lỗi unique constraint, thử tìm lại user đã tồn tại
+                if (dbEx.InnerException?.Message?.Contains("duplicate", StringComparison.OrdinalIgnoreCase) == true ||
+                    dbEx.InnerException?.Message?.Contains("unique", StringComparison.OrdinalIgnoreCase) == true)
+                {
+                    _logger.LogWarning("Unique constraint violation, attempting to find existing user");
+                    
+                    if (!string.IsNullOrWhiteSpace(clerkUser.Id))
+                    {
+                        var existing = await _userRepository.GetByClerkUserIdAsync(clerkUser.Id);
+                        if (existing != null)
+                        {
+                            _logger.LogInformation("Found existing user by ClerkId after constraint violation");
+                            return existing;
+                        }
+                    }
+                }
+                
                 throw new InvalidOperationException(
                     $"Database error saving user: {dbEx.Message}. Inner: {dbEx.InnerException?.Message}", 
                     dbEx);
@@ -155,7 +267,8 @@ namespace BLL.Services
         }
 
         /// <summary>
-        /// Tạo user từ Clerk webhook data
+        /// Tạo user từ Clerk webhook data.
+        /// Kiểm tra lần cuối cùng xem user đã tồn tại chưa (race condition protection).
         /// </summary>
         public async Task<Users> CreateUserFromWebhookAsync(ClerkWebhookData webhookData)
         {
@@ -165,6 +278,38 @@ namespace BLL.Services
             }
 
             var email = await GetEmailFromWebhookOrClerkApiAsync(webhookData);
+            var normalizedEmail = NormalizeEmail(email);
+
+            // Kiểm tra lần cuối cùng trước khi tạo mới (race condition protection)
+            if (!string.IsNullOrWhiteSpace(webhookData.Id))
+            {
+                var existingByClerkId = await _userRepository.GetByClerkUserIdAsync(webhookData.Id);
+                if (existingByClerkId != null)
+                {
+                    _logger.LogWarning(
+                        "[Webhook] CreateUserFromWebhook: Race condition detected - user already exists by ClerkId={ClerkId}. Updating instead.",
+                        webhookData.Id
+                    );
+                    return (await UpdateExistingUserFromWebhookAsync(existingByClerkId, webhookData)) != null 
+                        ? existingByClerkId 
+                        : throw new InvalidOperationException("Failed to update existing user");
+                }
+            }
+
+            if (!string.IsNullOrEmpty(normalizedEmail) && !IsPlaceholderEmail(email))
+            {
+                var existingByEmail = await _userRepository.GetByEmailNormalizedAsync(normalizedEmail);
+                if (existingByEmail != null)
+                {
+                    _logger.LogWarning(
+                        "[Webhook] CreateUserFromWebhook: Race condition detected - user already exists by Email={Email}. Merging ClerkId.",
+                        normalizedEmail
+                    );
+                    return (await UpdateExistingUserFromWebhookAsync(existingByEmail, webhookData)) != null 
+                        ? existingByEmail 
+                        : throw new InvalidOperationException("Failed to merge existing user");
+                }
+            }
 
             // Chỉ dùng placeholder khi thật sự không có email (kể cả từ Clerk API)
             if (string.IsNullOrWhiteSpace(email))
@@ -213,6 +358,24 @@ namespace BLL.Services
             {
                 _logger.LogError(dbEx, "Database error saving user from webhook. ClerkId: {ClerkId}, Email: {Email}, FullName: {FullName}. Error: {Error}", 
                     user.ClerkUserId, user.Email, user.FullName, dbEx.Message);
+                
+                // Nếu lỗi unique constraint, thử tìm lại user đã tồn tại
+                if (dbEx.InnerException?.Message?.Contains("duplicate", StringComparison.OrdinalIgnoreCase) == true ||
+                    dbEx.InnerException?.Message?.Contains("unique", StringComparison.OrdinalIgnoreCase) == true)
+                {
+                    _logger.LogWarning("Unique constraint violation, attempting to find existing user");
+                    
+                    if (!string.IsNullOrWhiteSpace(webhookData.Id))
+                    {
+                        var existing = await _userRepository.GetByClerkUserIdAsync(webhookData.Id);
+                        if (existing != null)
+                        {
+                            _logger.LogInformation("Found existing user by ClerkId after constraint violation");
+                            return existing;
+                        }
+                    }
+                }
+                
                 throw new InvalidOperationException(
                     $"Database error saving user: {dbEx.Message}. Inner: {dbEx.InnerException?.Message}", 
                     dbEx);
@@ -261,25 +424,50 @@ namespace BLL.Services
         }
 
         /// <summary>
-        /// Update user từ Clerk webhook data
+        /// Update user từ Clerk webhook data.
+        /// Nếu không tìm thấy theo ClerkId, sẽ tìm theo Email và merge thay vì tạo mới.
         /// </summary>
         public async Task<UserResponseDto?> UpdateUserFromWebhookAsync(ClerkWebhookData webhookData)
         {
             var user = await _userRepository.GetByClerkUserIdAsync(webhookData.Id ?? "");
             if (user == null)
             {
-                // Nếu không tìm thấy, tạo mới
+                // Không tìm thấy theo ClerkId, kiểm tra theo Email
+                var email = await GetEmailFromWebhookOrClerkApiAsync(webhookData);
+                var normalizedEmail = NormalizeEmail(email);
+
+                if (!string.IsNullOrEmpty(normalizedEmail) && !IsPlaceholderEmail(email))
+                {
+                    var existingUserByEmail = await _userRepository.GetByEmailNormalizedAsync(normalizedEmail);
+                    
+                    if (existingUserByEmail != null)
+                    {
+                        // Merge: Cập nhật ClerkUserId vào user hiện có
+                        _logger.LogWarning(
+                            "[Webhook] UpdateUserFromWebhook: Merge user by email. ExistingUserId={UserId}, OldClerkId={OldClerkId}, NewClerkId={NewClerkId}, Email={Email}",
+                            existingUserByEmail.Id,
+                            existingUserByEmail.ClerkUserId ?? "(null)",
+                            webhookData.Id,
+                            normalizedEmail
+                        );
+
+                        return await UpdateExistingUserFromWebhookAsync(existingUserByEmail, webhookData);
+                    }
+                }
+
+                // Nếu không tìm thấy theo ClerkId và Email, tạo mới
+                _logger.LogInformation("[Webhook] UpdateUserFromWebhook: Creating new user from webhook. ClerkId={ClerkId}, Email={Email}", webhookData.Id, normalizedEmail ?? "(no email)");
                 var newUser = await CreateUserFromWebhookAsync(webhookData);
                 return MapToDto(newUser);
             }
 
             // Cập nhật thông tin user
-            var email = webhookData.EmailAddresses?.FirstOrDefault(e => e.IsVerified)?.EmailAddress
+            var emailUpdate = webhookData.EmailAddresses?.FirstOrDefault(e => e.IsVerified)?.EmailAddress
                 ?? webhookData.EmailAddresses?.FirstOrDefault()?.EmailAddress;
 
-            if (!string.IsNullOrEmpty(email))
+            if (!string.IsNullOrEmpty(emailUpdate))
             {
-                user.Email = email;
+                user.Email = emailUpdate;
             }
 
             // Đảm bảo FullName không rỗng
