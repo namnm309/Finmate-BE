@@ -16,10 +16,11 @@ namespace FinmateController
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            // Controllers + JSON camelCase
+            // Controllers + JSON camelCase (serialization) và case-insensitive (deserialization) để request body camelCase từ mobile bind đúng vào DTO PascalCase
             builder.Services.AddControllers().AddJsonOptions(options =>
             {
                 options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+                options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
             });
 
             builder.Services.AddSignalR();
