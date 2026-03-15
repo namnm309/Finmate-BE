@@ -18,6 +18,10 @@ namespace BLL.DTOs.Response
 
         public bool BookmarkedByCurrentUser { get; set; }
 
+        public bool IsFollowingByCurrentUser { get; set; }
+
+        public bool IsOwnPost { get; set; }
+
         public DateTime CreatedAt { get; set; }
 
         public CommunityAuthorDto User { get; set; } = new();

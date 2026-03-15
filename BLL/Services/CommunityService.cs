@@ -80,17 +80,11 @@ namespace BLL.Services
                     .ThenByDescending(p => p.CreatedAt),
                 "following" => baseQuery
                     .Where(p => p.UserId == currentUserId
-                        || p.Likes.Any(l => l.UserId == currentUserId)
-                        || p.Bookmarks.Any(b => b.UserId == currentUserId)
-                        || p.Comments.Any(c => c.UserId == currentUserId))
+                        || _context.UserFollows.Any(f =>
+                            f.FollowerId == currentUserId && f.FollowingId == p.UserId))
                     .OrderByDescending(p => p.CreatedAt),
                 _ => baseQuery.OrderByDescending(p => p.CreatedAt)
             };
-
-            if (normalizedFilter == "following" && !await filteredQuery.AnyAsync())
-            {
-                filteredQuery = baseQuery.OrderByDescending(p => p.CreatedAt);
-            }
 
             var total = await filteredQuery.CountAsync();
             var items = await filteredQuery
@@ -98,9 +92,17 @@ namespace BLL.Services
                 .Take(safePageSize)
                 .ToListAsync();
 
+            var authorIds = items.Select(p => p.UserId).Distinct().ToList();
+            var followedIds = await _context.UserFollows
+                .AsNoTracking()
+                .Where(f => f.FollowerId == currentUserId && authorIds.Contains(f.FollowingId))
+                .Select(f => f.FollowingId)
+                .ToListAsync();
+            var followedSet = new HashSet<Guid>(followedIds);
+
             return new PagedResultDto<CommunityPostDto>
             {
-                Items = items.Select(post => MapPost(post, currentUserId)).ToList(),
+                Items = items.Select(post => MapPost(post, currentUserId, followedSet)).ToList(),
                 Total = total,
                 Page = safePage,
                 PageSize = safePageSize
@@ -237,6 +239,50 @@ namespace BLL.Services
                 .FirstAsync(c => c.Id == comment.Id));
         }
 
+        public async Task FollowAsync(Guid followerId, Guid followingId)
+        {
+            if (followerId == followingId)
+            {
+                throw new ArgumentException("Cannot follow yourself");
+            }
+
+            var targetUser = await _context.Users.FirstOrDefaultAsync(u => u.Id == followingId && u.IsActive);
+            if (targetUser == null)
+            {
+                throw new KeyNotFoundException("User not found");
+            }
+
+            var existing = await _context.UserFollows
+                .FirstOrDefaultAsync(f => f.FollowerId == followerId && f.FollowingId == followingId);
+
+            if (existing != null)
+            {
+                return;
+            }
+
+            _context.UserFollows.Add(new UserFollow
+            {
+                FollowerId = followerId,
+                FollowingId = followingId,
+                CreatedAt = DateTime.UtcNow
+            });
+            await _context.SaveChangesAsync();
+            _logger.LogInformation("[Community] User {FollowerId} followed {FollowingId}", followerId, followingId);
+        }
+
+        public async Task UnfollowAsync(Guid followerId, Guid followingId)
+        {
+            var existing = await _context.UserFollows
+                .FirstOrDefaultAsync(f => f.FollowerId == followerId && f.FollowingId == followingId);
+
+            if (existing != null)
+            {
+                _context.UserFollows.Remove(existing);
+                await _context.SaveChangesAsync();
+                _logger.LogInformation("[Community] User {FollowerId} unfollowed {FollowingId}", followerId, followingId);
+            }
+        }
+
         private async Task<CommunityPostDto> GetPostOrThrowAsync(Guid postId, Guid currentUserId)
         {
             var post = await _context.CommunityPosts
@@ -252,10 +298,17 @@ namespace BLL.Services
                 throw new KeyNotFoundException("Post not found");
             }
 
-            return MapPost(post, currentUserId);
+            var followedSet = await _context.UserFollows
+                .AsNoTracking()
+                .Where(f => f.FollowerId == currentUserId && f.FollowingId == post.UserId)
+                .AnyAsync()
+                ? new HashSet<Guid> { post.UserId }
+                : new HashSet<Guid>();
+
+            return MapPost(post, currentUserId, followedSet);
         }
 
-        private static CommunityPostDto MapPost(CommunityPost post, Guid currentUserId)
+        private static CommunityPostDto MapPost(CommunityPost post, Guid currentUserId, HashSet<Guid> followedUserIds)
         {
             return new CommunityPostDto
             {
@@ -267,6 +320,8 @@ namespace BLL.Services
                 SharesCount = post.SharesCount,
                 LikedByCurrentUser = post.Likes.Any(l => l.UserId == currentUserId),
                 BookmarkedByCurrentUser = post.Bookmarks.Any(b => b.UserId == currentUserId),
+                IsFollowingByCurrentUser = post.UserId != currentUserId && followedUserIds.Contains(post.UserId),
+                IsOwnPost = post.UserId == currentUserId,
                 CreatedAt = post.CreatedAt,
                 User = new CommunityAuthorDto
                 {

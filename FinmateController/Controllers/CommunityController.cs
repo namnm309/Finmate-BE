@@ -181,5 +181,55 @@ namespace FinmateController.Controllers
                 return StatusCode(500, body);
             }
         }
+
+        [HttpPost("follow/{userId:guid}")]
+        public async Task<IActionResult> Follow(Guid userId)
+        {
+            try
+            {
+                var currentUserId = await GetCurrentUserIdAsync();
+                if (!currentUserId.HasValue)
+                {
+                    return Unauthorized(new { message = "User not authenticated" });
+                }
+
+                await _communityService.FollowAsync(currentUserId.Value, userId);
+                return Ok(new { message = "Followed successfully" });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                var body = ApiErrorHelper.Build500Response(ex, _logger, "Follow");
+                return StatusCode(500, body);
+            }
+        }
+
+        [HttpDelete("follow/{userId:guid}")]
+        public async Task<IActionResult> Unfollow(Guid userId)
+        {
+            try
+            {
+                var currentUserId = await GetCurrentUserIdAsync();
+                if (!currentUserId.HasValue)
+                {
+                    return Unauthorized(new { message = "User not authenticated" });
+                }
+
+                await _communityService.UnfollowAsync(currentUserId.Value, userId);
+                return Ok(new { message = "Unfollowed successfully" });
+            }
+            catch (Exception ex)
+            {
+                var body = ApiErrorHelper.Build500Response(ex, _logger, "Unfollow");
+                return StatusCode(500, body);
+            }
+        }
     }
 }

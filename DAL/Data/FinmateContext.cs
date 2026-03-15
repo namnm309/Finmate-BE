@@ -37,6 +37,7 @@ namespace DAL.Data
         public DbSet<CommunityPostLike> CommunityPostLikes { get; set; }
         public DbSet<CommunityPostBookmark> CommunityPostBookmarks { get; set; }
         public DbSet<CommunityPostComment> CommunityPostComments { get; set; }
+        public DbSet<UserFollow> UserFollows { get; set; }
 
         //Nếu muốn cấu hình chi tiết thêm thì overrive OnModelCreating
         //Nếu đã sử dụng [] trc các attribute thì có thể ko cần method này 
@@ -96,6 +97,24 @@ namespace DAL.Data
                 entity.HasMany(u => u.CommunityPostComments)
                     .WithOne(c => c.User)
                     .HasForeignKey(c => c.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // UserFollow configuration
+            modelBuilder.Entity<UserFollow>(entity =>
+            {
+                entity.HasIndex(f => new { f.FollowerId, f.FollowingId })
+                    .IsUnique()
+                    .HasDatabaseName("IX_UserFollows_FollowerId_FollowingId");
+
+                entity.HasOne(f => f.Follower)
+                    .WithMany()
+                    .HasForeignKey(f => f.FollowerId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(f => f.Following)
+                    .WithMany()
+                    .HasForeignKey(f => f.FollowingId)
                     .OnDelete(DeleteBehavior.Cascade);
             });
 
