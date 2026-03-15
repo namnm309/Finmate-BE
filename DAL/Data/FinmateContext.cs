@@ -38,6 +38,8 @@ namespace DAL.Data
         public DbSet<CommunityPostBookmark> CommunityPostBookmarks { get; set; }
         public DbSet<CommunityPostComment> CommunityPostComments { get; set; }
         public DbSet<UserFollow> UserFollows { get; set; }
+        public DbSet<Bank> Banks { get; set; }
+        public DbSet<SavingsBook> SavingsBooks { get; set; }
 
         //Nếu muốn cấu hình chi tiết thêm thì overrive OnModelCreating
         //Nếu đã sử dụng [] trc các attribute thì có thể ko cần method này 
@@ -258,6 +260,28 @@ namespace DAL.Data
             {
                 entity.Property(t => t.Amount)
                     .HasPrecision(18, 2);
+            });
+
+            // SavingsBook configuration
+            modelBuilder.Entity<SavingsBook>(entity =>
+            {
+                entity.HasOne(s => s.User)
+                    .WithMany()
+                    .HasForeignKey(s => s.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(s => s.Bank)
+                    .WithMany()
+                    .HasForeignKey(s => s.BankId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(s => s.SourceMoneySource)
+                    .WithMany()
+                    .HasForeignKey(s => s.SourceMoneySourceId)
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasIndex(s => s.UserId)
+                    .HasDatabaseName("IX_SavingsBooks_UserId");
             });
 
             var seedTimestamp = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);
@@ -492,6 +516,27 @@ namespace DAL.Data
                     DisplayOrder = 13,
                     IsActive = true
                 }
+            );
+
+            // Seed data cho Bank (ngân hàng VN)
+            var bankSeedTimestamp = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            modelBuilder.Entity<Bank>().HasData(
+                new Bank { Id = Guid.Parse("44444444-4444-4444-4444-444444444001"), Name = "Ngân hàng TMCP Ngoại thương Việt Nam (Vietcombank)", Code = "VCB", DisplayOrder = 1, IsActive = true, CreatedAt = bankSeedTimestamp },
+                new Bank { Id = Guid.Parse("44444444-4444-4444-4444-444444444002"), Name = "Ngân hàng TMCP Đầu tư và Phát triển Việt Nam (BIDV)", Code = "BIDV", DisplayOrder = 2, IsActive = true, CreatedAt = bankSeedTimestamp },
+                new Bank { Id = Guid.Parse("44444444-4444-4444-4444-444444444003"), Name = "Ngân hàng TMCP Công thương Việt Nam (VietinBank)", Code = "CTG", DisplayOrder = 3, IsActive = true, CreatedAt = bankSeedTimestamp },
+                new Bank { Id = Guid.Parse("44444444-4444-4444-4444-444444444004"), Name = "Ngân hàng TMCP Xuất nhập khẩu Việt Nam (Eximbank)", Code = "EIB", DisplayOrder = 4, IsActive = true, CreatedAt = bankSeedTimestamp },
+                new Bank { Id = Guid.Parse("44444444-4444-4444-4444-444444444005"), Name = "Ngân hàng Nông nghiệp và Phát triển Nông thôn Việt Nam (Agribank)", Code = "AGRIBANK", DisplayOrder = 5, IsActive = true, CreatedAt = bankSeedTimestamp },
+                new Bank { Id = Guid.Parse("44444444-4444-4444-4444-444444444006"), Name = "Ngân hàng TMCP Kỹ thương Việt Nam (Techcombank)", Code = "TCB", DisplayOrder = 6, IsActive = true, CreatedAt = bankSeedTimestamp },
+                new Bank { Id = Guid.Parse("44444444-4444-4444-4444-444444444007"), Name = "Ngân hàng TMCP Quân đội (MB Bank)", Code = "MB", DisplayOrder = 7, IsActive = true, CreatedAt = bankSeedTimestamp },
+                new Bank { Id = Guid.Parse("44444444-4444-4444-4444-444444444008"), Name = "Ngân hàng TMCP Á Châu (ACB)", Code = "ACB", DisplayOrder = 8, IsActive = true, CreatedAt = bankSeedTimestamp },
+                new Bank { Id = Guid.Parse("44444444-4444-4444-4444-444444444009"), Name = "Ngân hàng TMCP Việt Nam Thịnh Vượng (VP Bank)", Code = "VPB", DisplayOrder = 9, IsActive = true, CreatedAt = bankSeedTimestamp },
+                new Bank { Id = Guid.Parse("44444444-4444-4444-4444-444444444010"), Name = "Ngân hàng TMCP Tiên Phong (TP Bank)", Code = "TPB", DisplayOrder = 10, IsActive = true, CreatedAt = bankSeedTimestamp },
+                new Bank { Id = Guid.Parse("44444444-4444-4444-4444-444444444011"), Name = "Ngân hàng TMCP Phát triển TP.HCM (HDBank)", Code = "HDB", DisplayOrder = 11, IsActive = true, CreatedAt = bankSeedTimestamp },
+                new Bank { Id = Guid.Parse("44444444-4444-4444-4444-444444444012"), Name = "Ngân hàng TMCP Sài Gòn Thương Tín (Sacombank)", Code = "STB", DisplayOrder = 12, IsActive = true, CreatedAt = bankSeedTimestamp },
+                new Bank { Id = Guid.Parse("44444444-4444-4444-4444-444444444013"), Name = "Ngân hàng TMCP Sài Gòn - Hà Nội (SHB)", Code = "SHB", DisplayOrder = 13, IsActive = true, CreatedAt = bankSeedTimestamp },
+                new Bank { Id = Guid.Parse("44444444-4444-4444-4444-444444444014"), Name = "Ngân hàng TMCP Bưu điện Liên Việt (LPBank)", Code = "LPB", DisplayOrder = 14, IsActive = true, CreatedAt = bankSeedTimestamp },
+                new Bank { Id = Guid.Parse("44444444-4444-4444-4444-444444444015"), Name = "Ngân hàng TMCP Phương Đông (OCB)", Code = "OCB", DisplayOrder = 15, IsActive = true, CreatedAt = bankSeedTimestamp },
+                new Bank { Id = Guid.Parse("44444444-4444-4444-4444-444444444016"), Name = "Khác", Code = null, DisplayOrder = 99, IsActive = true, CreatedAt = bankSeedTimestamp }
             );
         }
 
