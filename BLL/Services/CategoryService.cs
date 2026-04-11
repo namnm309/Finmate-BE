@@ -17,7 +17,7 @@ namespace BLL.Services
         {
             ("Gửi xe", "local-parking", 1),
             ("Học hành", "school", 2),
-            ("Shoppe/Tiki", "shopping-bag", 3),
+            ("Shopping", "shopping-bag", 3),
             ("Vui chơi giải trí", "sports-esports", 4),
             ("Ăn uống", "restaurant", 5),
             ("Dịch vụ sinh hoạt", "home", 6),
