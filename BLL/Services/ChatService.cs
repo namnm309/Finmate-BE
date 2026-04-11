@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using BLL.DTOs.Request;
 using BLL.DTOs.Response;
+using BLL.Services.Ai;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
@@ -33,8 +34,12 @@ namespace BLL.Services
         /// </summary>
         public async Task<List<string>> GetVisionModelsAsync(CancellationToken cancellationToken = default)
         {
-            var apiKey = _configuration["MegaLLM:ApiKey"];
-            var baseUrl = _configuration["MegaLLM:BaseUrl"]?.TrimEnd('/') ?? "https://ai.megallm.io/v1";
+            var cfg = AiProviderResolver.Resolve(_configuration);
+            if (cfg.Kind != AiProviderKind.MegaLLM)
+                return new List<string>();
+
+            var apiKey = cfg.ApiKey;
+            var baseUrl = cfg.BaseUrl;
             if (string.IsNullOrWhiteSpace(apiKey)) return new List<string>();
 
             try
@@ -65,22 +70,21 @@ namespace BLL.Services
         }
 
         /// <summary>
-        /// Kiểm tra cấu hình Mega LLM (OpenAI-compatible)
+        /// Kiểm tra cấu hình AI (OpenRouter hoặc MegaLLM, OpenAI-compatible).
         /// </summary>
         public async Task<(bool ApiKeyConfigured, string Provider, string BaseUrl, string ModelId, string? TestError)> GetDiagnosticAsync(CancellationToken cancellationToken = default)
         {
-            var apiKey = _configuration["MegaLLM:ApiKey"];
-            var baseUrl = _configuration["MegaLLM:BaseUrl"]?.TrimEnd('/') ?? "https://ai.megallm.io/v1";
-            var modelId = _configuration["MegaLLM:ModelId"] ?? "openai-gpt-oss-20b";
+            var cfg = AiProviderResolver.Resolve(_configuration);
+            var modelId = cfg.DefaultModelId;
 
-            if (string.IsNullOrWhiteSpace(apiKey))
+            if (string.IsNullOrWhiteSpace(cfg.ApiKey))
             {
-                return (false, "MegaLLM", baseUrl, modelId, "MegaLLM:ApiKey chưa được cấu hình.");
+                return (false, cfg.DisplayName, cfg.BaseUrl, modelId, $"{cfg.DisplayName}:ApiKey chưa được cấu hình.");
             }
 
             try
             {
-                var url = $"{baseUrl}/chat/completions";
+                var url = $"{cfg.BaseUrl}/chat/completions";
                 var body = new MegaLLMRequest
                 {
                     Model = modelId,
@@ -90,18 +94,19 @@ namespace BLL.Services
                 };
                 var jsonBody = JsonSerializer.Serialize(body, JsonOptions);
                 using var req = new HttpRequestMessage(HttpMethod.Post, url) { Content = new StringContent(jsonBody, Encoding.UTF8, "application/json") };
-                req.Headers.Add("Authorization", $"Bearer {apiKey}");
+                req.Headers.Add("Authorization", $"Bearer {cfg.ApiKey}");
+                cfg.ApplyOptionalProviderHeaders(req, _configuration);
                 var response = await _httpClient.SendAsync(req, cancellationToken);
                 if (!response.IsSuccessStatusCode)
                 {
                     var err = await response.Content.ReadAsStringAsync(cancellationToken);
-                    return (true, "MegaLLM", baseUrl, modelId, $"Mega LLM trả {(int)response.StatusCode}: {err}");
+                    return (true, cfg.DisplayName, cfg.BaseUrl, modelId, $"{cfg.DisplayName} trả {(int)response.StatusCode}: {err}");
                 }
-                return (true, "MegaLLM", baseUrl, modelId, null);
+                return (true, cfg.DisplayName, cfg.BaseUrl, modelId, null);
             }
             catch (Exception ex)
             {
-                return (true, "MegaLLM", baseUrl, modelId, ex.Message);
+                return (true, cfg.DisplayName, cfg.BaseUrl, modelId, ex.Message);
             }
         }
 
@@ -111,20 +116,20 @@ namespace BLL.Services
         /// </summary>
         public async Task<ChatResponseDto> SendChatAsync(ChatRequestDto request, CancellationToken cancellationToken = default)
         {
-            var apiKey = _configuration["MegaLLM:ApiKey"];
-            var baseUrl = _configuration["MegaLLM:BaseUrl"]?.TrimEnd('/') ?? "https://ai.megallm.io/v1";
-            var maxTokens = _configuration.GetValue<int>("MegaLLM:MaxTokens", 4096);
-            var temperature = _configuration.GetValue<double>("MegaLLM:Temperature", 0.7);
+            var cfg = AiProviderResolver.Resolve(_configuration);
+            var maxTokens = cfg.MaxTokens;
+            var temperature = cfg.Temperature;
 
             var hasImage = !string.IsNullOrWhiteSpace(request.ImageBase64);
-            var modelId = _configuration["MegaLLM:ModelId"] ?? "openai-gpt-oss-20b";
+            var modelId = cfg.DefaultModelId;
             var requestModel = request.Model?.Trim();
             if (!string.IsNullOrWhiteSpace(requestModel))
                 modelId = requestModel;
 
-            if (string.IsNullOrWhiteSpace(apiKey))
+            if (string.IsNullOrWhiteSpace(cfg.ApiKey))
             {
-                throw new InvalidOperationException("MegaLLM:ApiKey chưa được cấu hình. Thêm MegaLLM__ApiKey vào Azure Application Settings.");
+                var keyHint = AiProviderResolver.AzureApiKeyEnvHint(cfg.Kind);
+                throw new InvalidOperationException($"{cfg.DisplayName}:ApiKey chưa được cấu hình. Thêm {keyHint} vào Azure Application Settings.");
             }
 
             var systemPrompt = request.SystemPrompt?.Trim();
@@ -133,7 +138,7 @@ namespace BLL.Services
                 systemPrompt = "Bạn là trợ lý tài chính cá nhân thông minh của ứng dụng Finmate. Trả lời ngắn gọn bằng tiếng Việt.";
             }
 
-            // Build danh sách messages đầy đủ cho MegaLLM
+            // Build danh sách messages (OpenAI chat format — OpenRouter / MegaLLM)
             var messages = new List<object>();
 
             // 1. System prompt
@@ -215,13 +220,14 @@ namespace BLL.Services
                 Temperature = temperature
             };
 
-            var url = $"{baseUrl}/chat/completions";
+            var url = $"{cfg.BaseUrl}/chat/completions";
             var jsonBody = JsonSerializer.Serialize(megaRequest, JsonOptions);
-            _logger.LogInformation("Mega LLM request Model: {Model}, HasImage: {HasImage}, ImageBase64Len: {Len}, MessageCount: {Count}",
-                modelId, hasImage, hasImage ? (request.ImageBase64?.Length ?? 0) : 0, messages.Count);
+            _logger.LogInformation("{Provider} chat Model: {Model}, HasImage: {HasImage}, ImageBase64Len: {Len}, MessageCount: {Count}",
+                cfg.DisplayName, modelId, hasImage, hasImage ? (request.ImageBase64?.Length ?? 0) : 0, messages.Count);
 
             using var requestMessage = new HttpRequestMessage(HttpMethod.Post, url);
-            requestMessage.Headers.Add("Authorization", $"Bearer {apiKey}");
+            requestMessage.Headers.Add("Authorization", $"Bearer {cfg.ApiKey}");
+            cfg.ApplyOptionalProviderHeaders(requestMessage, _configuration);
             requestMessage.Content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
 
             var response = await _httpClient.SendAsync(requestMessage, cancellationToken);
@@ -229,24 +235,24 @@ namespace BLL.Services
             if (!response.IsSuccessStatusCode)
             {
                 var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
-                _logger.LogError("Mega LLM API error {StatusCode} Model={Model}: {Body}", response.StatusCode, modelId, errorBody);
+                _logger.LogError("{Provider} API error {StatusCode} Model={Model}: {Body}", cfg.DisplayName, response.StatusCode, modelId, errorBody);
 
                 // Gợi ý rõ ràng khi model không tồn tại hoặc không hỗ trợ vision
                 var status = (int)response.StatusCode;
                 if (hasImage && (status == 400 || status == 404 || status == 422))
                 {
+                    var hint = cfg.Kind == AiProviderKind.OpenRouter
+                        ? "Chọn model vision trên openrouter.ai/models (vd: openai/gpt-4o)."
+                        : "Kiểm tra dashboard MegaLLM (megallm.io) để chọn model có vision.";
                     throw new HttpRequestException(
-                        $"Model '{modelId}' không hỗ trợ vision hoặc không tồn tại trong gói hiện tại. " +
-                        $"Hãy kiểm tra dashboard MegaLLM (megallm.io/dashboard) để tìm model ID có vision, " +
-                        $"rồi thêm MegaLLM__VisionModelId vào Azure Application Settings. " +
-                        $"Chi tiết: {errorBody}");
+                        $"Model '{modelId}' không hỗ trợ vision hoặc không hợp lệ. {hint} Chi tiết: {errorBody}");
                 }
 
-                throw new HttpRequestException($"Mega LLM trả lỗi {status}: {errorBody}");
+                throw new HttpRequestException($"{cfg.DisplayName} trả lỗi {status}: {errorBody}");
             }
 
             var apiResponse = await response.Content.ReadFromJsonAsync<MegaLLMResponse>(JsonOptions, cancellationToken)
-                ?? throw new InvalidOperationException("Không thể đọc phản hồi từ Mega LLM");
+                ?? throw new InvalidOperationException($"Không thể đọc phản hồi từ {cfg.DisplayName}");
 
             var text = apiResponse.Choices?.FirstOrDefault()?.Message?.Content ?? string.Empty;
             var usage = apiResponse.Usage != null
