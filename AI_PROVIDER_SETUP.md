@@ -39,9 +39,9 @@ Trong repo, block **MegaLLM** trong `appsettings.json` đang được **comment 
 |------|---------|
 | `OpenRouter__ApiKey` | Bắt buộc — [openrouter.ai/keys](https://openrouter.ai/keys) |
 | `OpenRouter__BaseUrl` | Mặc định `https://openrouter.ai/api/v1` |
-| `OpenRouter__ModelId` | Mặc định dự án: `meta-llama/llama-3.2-11b-vision-instruct:free` (free, vision — quét bill). Nếu OpenRouter báo **No endpoints found**, đổi sang model `:free` khác có **Image** trên [Models](https://openrouter.ai/models). Các model `:free` (vd. Gemini Flash exp) có thể bị gỡ route tạm hoặc vĩnh viễn. |
+| `OpenRouter__ModelId` | **Bắt buộc** (không còn trong `appsettings` repo). Ví dụ: `google/gemma-4-31b-it:free`. Nếu **No endpoints found**, thử `openrouter/free` hoặc model `:free` khác trên [Models (free)](https://openrouter.ai/models?pricing=free). |
 | `OpenRouter__MaxTokens`, `OpenRouter__Temperature` | Tuỳ chọn |
-| `OpenRouter__HttpReferer`, `OpenRouter__SiteTitle` | Tuỳ chọn (ranking OpenRouter) |
+| `OpenRouter__HttpReferer`, `OpenRouter__SiteTitle` | Tuỳ chọn (ranking OpenRouter). Trong repo: referer mặc định **`https://finmate.website`** (FE production). Azure có thể ghi đè `OpenRouter__HttpReferer` nếu đổi domain. |
 
 Tài liệu API: [OpenRouter](https://openrouter.ai/docs).
 

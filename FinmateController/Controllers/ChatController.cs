@@ -71,9 +71,9 @@ namespace FinmateController.Controllers
             {
                 return BadRequest(new { message = ex.Message });
             }
-            catch (InvalidOperationException ex) when (ex.Message.Contains("ApiKey") || ex.Message.Contains("chưa được cấu hình"))
+            catch (InvalidOperationException ex) when (ex.Message.Contains("ApiKey") || ex.Message.Contains("ModelId") || ex.Message.Contains("chưa được cấu hình"))
             {
-                _logger.LogError(ex, "AI ApiKey chưa cấu hình trên server");
+                _logger.LogError(ex, "AI thiếu cấu hình trên server (ApiKey / ModelId)");
                 return StatusCode(503, new { message = "AI chưa được cấu hình. Liên hệ quản trị viên." });
             }
             catch (HttpRequestException ex)

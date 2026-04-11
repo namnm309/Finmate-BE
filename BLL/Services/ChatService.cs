@@ -82,6 +82,12 @@ namespace BLL.Services
                 return (false, cfg.DisplayName, cfg.BaseUrl, modelId, $"{cfg.DisplayName}:ApiKey chưa được cấu hình.");
             }
 
+            if (string.IsNullOrWhiteSpace(modelId))
+            {
+                var hint = AiProviderResolver.AzureModelIdEnvHint(cfg.Kind);
+                return (true, cfg.DisplayName, cfg.BaseUrl, modelId, $"{cfg.DisplayName}:ModelId chưa được cấu hình. Thêm {hint}.");
+            }
+
             try
             {
                 var url = $"{cfg.BaseUrl}/chat/completions";
@@ -130,6 +136,12 @@ namespace BLL.Services
             {
                 var keyHint = AiProviderResolver.AzureApiKeyEnvHint(cfg.Kind);
                 throw new InvalidOperationException($"{cfg.DisplayName}:ApiKey chưa được cấu hình. Thêm {keyHint} vào Azure Application Settings.");
+            }
+
+            if (string.IsNullOrWhiteSpace(modelId))
+            {
+                var modelHint = AiProviderResolver.AzureModelIdEnvHint(cfg.Kind);
+                throw new InvalidOperationException($"{cfg.DisplayName}:ModelId chưa được cấu hình. Thêm {modelHint} (Azure Application Settings).");
             }
 
             var systemPrompt = request.SystemPrompt?.Trim();

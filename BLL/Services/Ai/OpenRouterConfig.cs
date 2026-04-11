@@ -13,9 +13,9 @@ public static class OpenRouterConfig
     public static string BaseUrl(IConfiguration c) =>
         (c["OpenRouter:BaseUrl"] ?? "https://openrouter.ai/api/v1").Trim().TrimEnd('/');
 
-    /// <summary>Mặc định: Llama 3.2 11B Vision :free — OpenRouter thường còn endpoint; hỗ trợ ảnh (bill/OCR). Model :free khác có thể bị gỡ bất cứ lúc nào.</summary>
+    /// <summary>Chỉ từ cấu hình (vd. Azure <c>OpenRouter__ModelId</c>) — không có giá trị mặc định trong code.</summary>
     public static string ModelId(IConfiguration c) =>
-        c["OpenRouter:ModelId"] ?? "meta-llama/llama-3.2-11b-vision-instruct:free";
+        (c["OpenRouter:ModelId"] ?? string.Empty).Trim();
 
     /// <summary>
     /// OpenRouter khuyến nghị gửi để hiển thị trên bảng xếp hạng (không bắt buộc).

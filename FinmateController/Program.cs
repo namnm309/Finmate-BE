@@ -187,6 +187,12 @@ namespace FinmateController
                         "Provider AI: {Provider} — ApiKey chưa cấu hình. Thêm biến {Env} (Azure Application Settings hoặc appsettings).",
                         ai.DisplayName, env);
                 }
+
+                if (ai.Kind == AiProviderKind.OpenRouter && string.IsNullOrWhiteSpace(OpenRouterConfig.ModelId(builder.Configuration)))
+                {
+                    startupLogger.LogWarning(
+                        "OpenRouter:ModelId chưa cấu hình. Thêm biến OpenRouter__ModelId (Azure Application Settings), ví dụ google/gemma-4-31b-it:free.");
+                }
             }
 
             // Swagger (bật mọi env)

@@ -41,4 +41,7 @@ public static class AiProviderResolver
 
     public static string AzureApiKeyEnvHint(AiProviderKind kind) =>
         kind == AiProviderKind.OpenRouter ? "OpenRouter__ApiKey" : "MegaLLM__ApiKey";
+
+    public static string AzureModelIdEnvHint(AiProviderKind kind) =>
+        kind == AiProviderKind.OpenRouter ? "OpenRouter__ModelId" : "MegaLLM__ModelId";
 }
