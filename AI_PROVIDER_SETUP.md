@@ -39,7 +39,7 @@ Trong repo, block **MegaLLM** trong `appsettings.json` đang được **comment 
 |------|---------|
 | `OpenRouter__ApiKey` | Bắt buộc — [openrouter.ai/keys](https://openrouter.ai/keys) |
 | `OpenRouter__BaseUrl` | Mặc định `https://openrouter.ai/api/v1` |
-| `OpenRouter__ModelId` | Mặc định dự án: `google/gemini-2.0-flash-exp:free` (miễn phí, nhanh, có vision — quét bill). Thay bằng model khác trên [Models](https://openrouter.ai/models), lọc **Image** + **Pricing**; ví dụ dự phòng: `meta-llama/llama-3.2-11b-vision-instruct:free` |
+| `OpenRouter__ModelId` | Mặc định dự án: `meta-llama/llama-3.2-11b-vision-instruct:free` (free, vision — quét bill). Nếu OpenRouter báo **No endpoints found**, đổi sang model `:free` khác có **Image** trên [Models](https://openrouter.ai/models). Các model `:free` (vd. Gemini Flash exp) có thể bị gỡ route tạm hoặc vĩnh viễn. |
 | `OpenRouter__MaxTokens`, `OpenRouter__Temperature` | Tuỳ chọn |
 | `OpenRouter__HttpReferer`, `OpenRouter__SiteTitle` | Tuỳ chọn (ranking OpenRouter) |
 
