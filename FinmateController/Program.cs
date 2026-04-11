@@ -1,4 +1,5 @@
 using BLL.Services;
+using BLL.Services.Ai;
 using DAL.Data;
 using DAL.Repositories;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -175,11 +176,23 @@ namespace FinmateController
 
             var app = builder.Build();
 
-            // Cảnh báo nếu Mega LLM chưa cấu hình
-            if (string.IsNullOrWhiteSpace(builder.Configuration["MegaLLM:ApiKey"]))
+            // Cảnh báo nếu AI provider đang chọn nhưng thiếu ApiKey (cùng logic với AiProviderResolver)
             {
                 var startupLogger = app.Services.GetRequiredService<ILogger<Program>>();
-                startupLogger.LogWarning("MegaLLM:ApiKey chưa được cấu hình. Thêm MegaLLM__ApiKey vào Azure Application Settings.");
+                var ai = AiProviderResolver.Resolve(builder.Configuration);
+                if (string.IsNullOrWhiteSpace(ai.ApiKey))
+                {
+                    var env = AiProviderResolver.AzureApiKeyEnvHint(ai.Kind);
+                    startupLogger.LogWarning(
+                        "Provider AI: {Provider} — ApiKey chưa cấu hình. Thêm biến {Env} (Azure Application Settings hoặc appsettings).",
+                        ai.DisplayName, env);
+                }
+
+                if (ai.Kind == AiProviderKind.OpenRouter && string.IsNullOrWhiteSpace(OpenRouterConfig.ModelId(builder.Configuration)))
+                {
+                    startupLogger.LogWarning(
+                        "OpenRouter:ModelId chưa cấu hình. Thêm biến OpenRouter__ModelId (Azure Application Settings), ví dụ google/gemma-4-31b-it:free.");
+                }
             }
 
             // Swagger (bật mọi env)

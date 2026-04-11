@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace FinmateController.Controllers
 {
     /// <summary>
-    /// AI Chat Bot - tích hợp Mega LLM (OpenAI-compatible, model gpt-5-mini)
+    /// AI Chat Bot — OpenRouter hoặc MegaLLM (AISupport:Provider), OpenAI-compatible.
     /// </summary>
     [ApiController]
     [Route("api/chat")]
@@ -27,7 +27,7 @@ namespace FinmateController.Controllers
         }
 
         /// <summary>
-        /// Kiểm tra cấu hình Mega LLM
+        /// Kiểm tra cấu hình AI (OpenRouter / MegaLLM)
         /// </summary>
         [HttpGet("diagnostic")]
         [AllowAnonymous]
@@ -71,24 +71,24 @@ namespace FinmateController.Controllers
             {
                 return BadRequest(new { message = ex.Message });
             }
-            catch (InvalidOperationException ex) when (ex.Message.Contains("ApiKey") || ex.Message.Contains("chưa được cấu hình"))
+            catch (InvalidOperationException ex) when (ex.Message.Contains("ApiKey") || ex.Message.Contains("ModelId") || ex.Message.Contains("chưa được cấu hình"))
             {
-                _logger.LogError(ex, "Mega LLM ApiKey chưa cấu hình trên server");
+                _logger.LogError(ex, "AI thiếu cấu hình trên server (ApiKey / ModelId)");
                 return StatusCode(503, new { message = "AI chưa được cấu hình. Liên hệ quản trị viên." });
             }
             catch (HttpRequestException ex)
             {
-                _logger.LogError(ex, "Mega LLM API error: {Message}", ex.Message);
+                _logger.LogError(ex, "AI API error: {Message}", ex.Message);
                 return StatusCode(502, new { message = "Không thể kết nối AI. Vui lòng thử lại sau.", detail = ex.Message });
             }
             catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
             {
-                _logger.LogWarning(ex, "Mega LLM timeout");
+                _logger.LogWarning(ex, "AI chat timeout");
                 return StatusCode(504, new { message = "AI phản hồi quá chậm. Vui lòng thử lại." });
             }
             catch (TaskCanceledException)
             {
-                _logger.LogWarning("Mega LLM request cancelled/timeout");
+                _logger.LogWarning("AI chat request cancelled/timeout");
                 return StatusCode(504, new { message = "Yêu cầu quá thời gian. Vui lòng thử lại." });
             }
             catch (Exception ex)
