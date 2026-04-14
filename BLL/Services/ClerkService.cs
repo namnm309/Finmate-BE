@@ -4,6 +4,12 @@ using System.Text.Json.Serialization;
 using System.Text;
 using System.Collections.Generic;
 using Microsoft.Extensions.Configuration;
+using Microsoft.IdentityModel.Protocols;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Collections.Concurrent;
+using System.Security.Claims;
 
 namespace BLL.Services
 {
@@ -13,6 +19,7 @@ namespace BLL.Services
         private readonly string _secretKey;
         private readonly string _webhookSecret;
         private readonly IConfiguration _configuration;
+        private static readonly ConcurrentDictionary<string, ConfigurationManager<OpenIdConnectConfiguration>> _oidcManagers = new();
         private static readonly JsonSerializerOptions _jsonOptions = new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true,
@@ -34,34 +41,98 @@ namespace BLL.Services
         }
 
         /// <summary>
-        /// Verify JWT token và lấy user info từ Clerk
+        /// Verify JWT token bằng OIDC/JWKS (issuer=Clerk InstanceUrl) và trả về Clerk userId (sub).
         /// </summary>
-        public async Task<ClerkUserInfo?> VerifyTokenAndGetUserAsync(string token)
+        public async Task<string?> VerifyTokenAndGetUserIdAsync(string token)
         {
             try
             {
-                var request = new HttpRequestMessage(HttpMethod.Get, "users/me");
-                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-
-                var response = await _httpClient.SendAsync(request);
-                
-                if (!response.IsSuccessStatusCode)
-                {
-                    return null;
-                }
-
-                var content = await response.Content.ReadAsStringAsync();
-                var userInfo = JsonSerializer.Deserialize<ClerkUserInfo>(content, new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true
-                });
-
-                return userInfo;
+                var sub = await ValidateTokenAndGetSubOrThrowAsync(token);
+                return string.IsNullOrWhiteSpace(sub) ? null : sub;
             }
             catch
             {
                 return null;
             }
+        }
+
+        private async Task<string?> ValidateTokenAndGetSubOrThrowAsync(string token)
+        {
+            // NOTE:
+            // - Không tin hoàn toàn vào config Clerk:InstanceUrl (có thể bị override sai khi chạy dev).
+            // - Lấy issuer trực tiếp từ JWT (unsigned read) để tải OIDC/JWKS đúng instance.
+            var handler = new JwtSecurityTokenHandler
+            {
+                // Quan trọng: không map 'sub' -> NameIdentifier
+                MapInboundClaims = false
+            };
+
+            var jwt = handler.ReadJwtToken(token);
+            var issuer = (jwt.Issuer ?? "").Trim().TrimEnd('/');
+            if (string.IsNullOrWhiteSpace(issuer))
+            {
+                throw new SecurityTokenInvalidIssuerException("Missing issuer (iss) in token");
+            }
+
+            // Basic sanity check (dev): chỉ chấp nhận issuer từ Clerk
+            if (!issuer.EndsWith(".clerk.accounts.dev", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new SecurityTokenInvalidIssuerException($"Unexpected issuer: {issuer}");
+            }
+
+            var metadataAddress = $"{issuer}/.well-known/openid-configuration";
+            var mgr = _oidcManagers.GetOrAdd(
+                metadataAddress,
+                addr => new ConfigurationManager<OpenIdConnectConfiguration>(addr, new OpenIdConnectConfigurationRetriever())
+            );
+
+            var oidc = await mgr.GetConfigurationAsync(CancellationToken.None);
+
+            var parameters = new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidIssuer = issuer,
+                ValidateAudience = false,
+                ValidateLifetime = true,
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKeys = oidc.SigningKeys,
+                ClockSkew = TimeSpan.FromMinutes(2),
+                NameClaimType = "sub"
+            };
+
+            var principal = handler.ValidateToken(token, parameters, out _);
+            return principal.FindFirst("sub")?.Value
+                   ?? principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        }
+
+        /// <summary>
+        /// Dev helper: trả về lỗi validate token để debug.
+        /// </summary>
+        public async Task<(string? UserId, string? Error)> VerifyTokenAndGetUserIdWithErrorAsync(string token)
+        {
+            try
+            {
+                var sub = await ValidateTokenAndGetSubOrThrowAsync(token);
+                return !string.IsNullOrWhiteSpace(sub) ? (sub, null) : (null, "Token validated but missing sub claim");
+            }
+            catch (Exception ex)
+            {
+                return (null, ex.ToString());
+            }
+        }
+
+        /// <summary>
+        /// Verify session JWT và lấy user info từ Clerk REST API bằng secret key.
+        /// </summary>
+        public async Task<ClerkUserInfo?> VerifyTokenAndGetUserAsync(string token)
+        {
+            var userId = await VerifyTokenAndGetUserIdAsync(token);
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                return null;
+            }
+
+            return await GetUserByIdAsync(userId);
         }
 
         /// <summary>

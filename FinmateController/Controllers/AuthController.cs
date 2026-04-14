@@ -4,6 +4,7 @@ using System.Security.Claims;
 using BLL.Services;
 using BLL.DTOs.Request;
 using BLL.DTOs.Response;
+using System.Net.Http.Headers;
 
 namespace FinmateController.Controllers
 {
@@ -63,6 +64,49 @@ namespace FinmateController.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting current user");
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+        /// <summary>
+        /// Fallback cho môi trường dev: verify token qua Clerk API (/users/me) thay vì JWT bearer validation.
+        /// Dùng khi middleware JWT (OIDC) trả 401 do không validate được token từ FE.
+        /// </summary>
+        [HttpGet("me-external")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetCurrentUserExternal()
+        {
+            try
+            {
+                var authHeader = Request.Headers.Authorization.ToString();
+                if (string.IsNullOrWhiteSpace(authHeader) || !authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+                {
+                    return Unauthorized("Missing Bearer token");
+                }
+
+                var token = authHeader.Substring("Bearer ".Length).Trim();
+                if (string.IsNullOrWhiteSpace(token))
+                {
+                    return Unauthorized("Missing token");
+                }
+
+                var (userId, error) = await _clerkService.VerifyTokenAndGetUserIdWithErrorAsync(token);
+                if (string.IsNullOrWhiteSpace(userId))
+                {
+                    return Unauthorized(error ?? "Invalid token");
+                }
+
+                var userDto = await _userService.GetOrCreateUserFromClerkAsync(userId);
+                if (userDto == null)
+                {
+                    return Unauthorized("User not found");
+                }
+
+                return Ok(userDto);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting current user (external verify)");
                 return StatusCode(500, "Internal server error");
             }
         }

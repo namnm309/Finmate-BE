@@ -3,6 +3,7 @@ using BLL.DTOs.Response;
 using DAL.Models;
 using DAL.Repositories;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.ComponentModel.DataAnnotations;
 
@@ -13,12 +14,18 @@ namespace BLL.Services
         private readonly IUserRepository _userRepository;
         private readonly ClerkService _clerkService;
         private readonly ILogger<UserService> _logger;
+        private readonly IConfiguration _configuration;
 
-        public UserService(IUserRepository userRepository, ClerkService clerkService, ILogger<UserService> logger)
+        public UserService(
+            IUserRepository userRepository,
+            ClerkService clerkService,
+            ILogger<UserService> logger,
+            IConfiguration configuration)
         {
             _userRepository = userRepository;
             _clerkService = clerkService;
             _logger = logger;
+            _configuration = configuration;
         }
 
         /// <summary>
@@ -33,6 +40,7 @@ namespace BLL.Services
             if (user != null)
             {
                 _logger.LogInformation("[Auth] GetOrCreateUserFromClerk: Found existing user ClerkId={ClerkId}, UserId={UserId}", clerkUserId, user.Id);
+                user = await MaybePromoteExistingUserAsync(user);
                 return MapToDto(user);
             }
 
@@ -83,6 +91,8 @@ namespace BLL.Services
                     existingUserByEmail.AvatarUrl = clerkUser.ImageUrl ?? existingUserByEmail.AvatarUrl ?? "";
                     existingUserByEmail.UpdatedAt = clerkUser.GetUpdatedAtDateTime() ?? DateTime.UtcNow;
                     existingUserByEmail.LastLoginAt = clerkUser.GetLastSignInAtDateTime() ?? existingUserByEmail.LastLoginAt;
+
+                    await ApplyBootstrapRoleAsync(existingUserByEmail);
 
                     var updatedUser = await _userRepository.UpdateAsync(existingUserByEmail);
                     return MapToDto(updatedUser);
@@ -196,6 +206,8 @@ namespace BLL.Services
                 LastLoginAt = clerkUser.GetLastSignInAtDateTime()
             };
 
+            await ApplyBootstrapRoleAsync(user);
+
             // Validate entity trước khi save
             ValidateUserEntity(user, "CreateUserFromClerkAsync");
 
@@ -243,6 +255,84 @@ namespace BLL.Services
                     $"Error saving user to database: {ex.Message}", 
                     ex);
             }
+        }
+
+        /// <summary>
+        /// Bootstrap role cho môi trường dev:
+        /// - Nếu DB chưa có user nào => user đầu tiên sẽ là Admin.
+        /// - Nếu có allowlist theo email qua config thì áp dụng (Admin > Staff).
+        /// </summary>
+        private async Task ApplyBootstrapRoleAsync(Users user)
+        {
+            try
+            {
+                // 1) First user becomes Admin (để vào dashboard ngay)
+                var hasAnyUser = await _userRepository.AnyAsync();
+                if (!hasAnyUser)
+                {
+                    user.Role = Role.Admin;
+                    _logger.LogWarning("[Auth] BootstrapRole: First user promoted to Admin. Email={Email}", user.Email);
+                    return;
+                }
+
+                // 2) Optional allowlist by email (comma-separated)
+                var email = (user.Email ?? "").Trim().ToLowerInvariant();
+                if (string.IsNullOrEmpty(email)) return;
+
+                // 0) Optional: auto-promote all signed-in Clerk users to Staff in dev
+                // (useful for local dashboard bootstrapping)
+                var autoPromoteAllToStaff =
+                    string.Equals(_configuration["Bootstrap:AutoPromoteAllClerkUsersToStaff"], "true", StringComparison.OrdinalIgnoreCase);
+                if (autoPromoteAllToStaff && user.Role == Role.User)
+                {
+                    user.Role = Role.Staff;
+                    _logger.LogWarning("[Auth] BootstrapRole: Auto-promoted to Staff. Email={Email}", user.Email);
+                    // Continue to allowlist checks (Admin can override)
+                }
+
+                var adminList = (_configuration["Bootstrap:AdminEmails"] ?? "")
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Select(x => x.Trim().ToLowerInvariant())
+                    .ToHashSet();
+
+                var staffList = (_configuration["Bootstrap:StaffEmails"] ?? "")
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Select(x => x.Trim().ToLowerInvariant())
+                    .ToHashSet();
+
+                if (adminList.Contains(email))
+                {
+                    user.Role = Role.Admin;
+                    _logger.LogWarning("[Auth] BootstrapRole: Email allowlisted as Admin. Email={Email}", user.Email);
+                    return;
+                }
+
+                if (staffList.Contains(email))
+                {
+                    user.Role = Role.Staff;
+                    _logger.LogWarning("[Auth] BootstrapRole: Email allowlisted as Staff. Email={Email}", user.Email);
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "[Auth] BootstrapRole: skipped due to error");
+            }
+        }
+
+        private async Task<Users> MaybePromoteExistingUserAsync(Users user)
+        {
+            var before = user.Role;
+            await ApplyBootstrapRoleAsync(user);
+
+            if (user.Role != before)
+            {
+                user.UpdatedAt = DateTime.UtcNow;
+                _logger.LogWarning("[Auth] BootstrapRole: Promoted existing user. UserId={UserId} Role={Role}", user.Id, user.Role);
+                return await _userRepository.UpdateAsync(user);
+            }
+
+            return user;
         }
 
         /// <summary>

@@ -4,6 +4,7 @@ namespace DAL.Repositories
 {
     public interface IUserRepository
     {
+        Task<bool> AnyAsync();
         Task<Users?> GetByClerkUserIdAsync(string clerkUserId);
         Task<Users?> GetByIdAsync(Guid id);
         Task<Users?> GetByEmailAsync(string email);

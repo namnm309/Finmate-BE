@@ -13,6 +13,11 @@ namespace DAL.Repositories
             _context = context;
         }
 
+        public async Task<bool> AnyAsync()
+        {
+            return await _context.Users.AnyAsync();
+        }
+
         public async Task<Users?> GetByClerkUserIdAsync(string clerkUserId)
         {
             if (string.IsNullOrWhiteSpace(clerkUserId)) return null;
