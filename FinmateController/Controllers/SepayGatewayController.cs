@@ -81,19 +81,19 @@ namespace FinmateController.Controllers
 
         private static string SignFields(Dictionary<string, string> fields, string secretKey)
         {
-            // Based on SePay docs: sign a comma-separated list of field=value pairs
-            var signedFieldNames = new[]
+            // Mirror SePay docs behavior: sign *present* fields in the order they appear in the form.
+            var allow = new HashSet<string>(StringComparer.Ordinal)
             {
                 "merchant","operation","payment_method","order_amount","currency",
                 "order_invoice_number","order_description","customer_id",
                 "success_url","error_url","cancel_url"
             };
 
-            var parts = new List<string>(signedFieldNames.Length);
-            foreach (var name in signedFieldNames)
+            var parts = new List<string>(allow.Count);
+            foreach (var kv in fields)
             {
-                if (!fields.TryGetValue(name, out var value)) continue;
-                parts.Add($"{name}={value ?? ""}");
+                if (!allow.Contains(kv.Key)) continue;
+                parts.Add($"{kv.Key}={kv.Value ?? ""}");
             }
 
             var data = string.Join(",", parts);
@@ -157,13 +157,14 @@ namespace FinmateController.Controllers
                 var errorUrl = $"{feBaseUrl}/sepay-return?orderId={orderId}&result=error";
                 var cancelUrl = $"{feBaseUrl}/sepay-return?orderId={orderId}&result=cancel";
 
+                // IMPORTANT: insertion order affects signature (SePay sample signs in input order)
                 var fields = new Dictionary<string, string>
                 {
                     ["merchant"] = merchantId,
                     ["currency"] = "VND",
+                    ["order_amount"] = ((long)cfg.PriceVnd).ToString(CultureInfo.InvariantCulture),
                     ["operation"] = "PURCHASE",
                     ["payment_method"] = "BANK_TRANSFER",
-                    ["order_amount"] = ((long)cfg.PriceVnd).ToString(CultureInfo.InvariantCulture),
                     ["order_invoice_number"] = invoice,
                     ["order_description"] = $"Nang cap tai khoan ({body.Plan})",
                     ["customer_id"] = me.Id.ToString(),
