@@ -81,28 +81,20 @@ namespace FinmateController.Controllers
 
         private static string SignFields(Dictionary<string, string> fields, string secretKey)
         {
-            // Follow SePay docs: build signature from known fields in a stable order.
-            // (Order matters; incorrect order often causes "Yêu cầu không hợp lệ".)
-            var signedFieldNames = new[]
+            // Mirror SePay sample (PHP): signature is built from fields that exist in the form,
+            // filtered by an allowlist, *in the same order as the form fields were created*.
+            var allow = new HashSet<string>(StringComparer.Ordinal)
             {
-                "merchant",
-                "operation",
-                "payment_method",
-                "order_amount",
-                "currency",
-                "order_invoice_number",
-                "order_description",
-                "customer_id",
-                "success_url",
-                "error_url",
-                "cancel_url",
+                "merchant","operation","payment_method","order_amount","currency",
+                "order_invoice_number","order_description","customer_id",
+                "success_url","error_url","cancel_url"
             };
 
-            var parts = new List<string>(signedFieldNames.Length);
-            foreach (var name in signedFieldNames)
+            var parts = new List<string>(allow.Count);
+            foreach (var kv in fields)
             {
-                if (!fields.TryGetValue(name, out var value)) continue;
-                parts.Add($"{name}={value ?? ""}");
+                if (!allow.Contains(kv.Key)) continue;
+                parts.Add($"{kv.Key}={kv.Value ?? ""}");
             }
 
             var data = string.Join(",", parts);
@@ -166,14 +158,13 @@ namespace FinmateController.Controllers
                 var errorUrl = $"{feBaseUrl}/sepay-return?orderId={orderId}&result=error";
                 var cancelUrl = $"{feBaseUrl}/sepay-return?orderId={orderId}&result=cancel";
 
-                // IMPORTANT: keep a deterministic field order for signature and form post.
+                // IMPORTANT: keep the same field insertion order as SePay docs samples.
                 var fields = new Dictionary<string, string>
                 {
                     ["merchant"] = merchantId,
+                    ["currency"] = "VND",
                     ["order_amount"] = ((long)cfg.PriceVnd).ToString(CultureInfo.InvariantCulture),
                     ["operation"] = "PURCHASE",
-                    ["payment_method"] = "BANK_TRANSFER",
-                    ["currency"] = "VND",
                     ["order_invoice_number"] = invoice,
                     ["order_description"] = $"Nang cap tai khoan ({body.Plan})",
                     ["customer_id"] = me.Id.ToString(),
