@@ -43,6 +43,7 @@ namespace DAL.Data
         public DbSet<PremiumPlanConfig> PremiumPlanConfigs { get; set; }
         public DbSet<PremiumOrder> PremiumOrders { get; set; }
         public DbSet<SepayWebhookEvent> SepayWebhookEvents { get; set; }
+        public DbSet<AppDownloadConfig> AppDownloadConfigs { get; set; }
 
         //Nếu muốn cấu hình chi tiết thêm thì overrive OnModelCreating
         //Nếu đã sử dụng [] trc các attribute thì có thể ko cần method này 
@@ -241,6 +242,12 @@ namespace DAL.Data
 
                 entity.HasIndex(p => p.ReferenceCode)
                     .HasDatabaseName("IX_SepayWebhookEvents_ReferenceCode");
+            });
+
+            modelBuilder.Entity<AppDownloadConfig>(entity =>
+            {
+                entity.Property(p => p.IosUrl).HasMaxLength(2048);
+                entity.Property(p => p.AndroidUrl).HasMaxLength(2048);
             });
 
             // CommunityPost configuration
