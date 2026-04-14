@@ -40,6 +40,7 @@ namespace DAL.Data
         public DbSet<UserFollow> UserFollows { get; set; }
         public DbSet<Bank> Banks { get; set; }
         public DbSet<SavingsBook> SavingsBooks { get; set; }
+        public DbSet<PremiumPlanConfig> PremiumPlanConfigs { get; set; }
 
         //Nếu muốn cấu hình chi tiết thêm thì overrive OnModelCreating
         //Nếu đã sử dụng [] trc các attribute thì có thể ko cần method này 
@@ -188,6 +189,18 @@ namespace DAL.Data
 
                 entity.HasIndex(p => p.ExpiresAt)
                     .HasDatabaseName("IX_PremiumSubscriptions_ExpiresAt");
+            });
+
+            // PremiumPlanConfig configuration
+            modelBuilder.Entity<PremiumPlanConfig>(entity =>
+            {
+                entity.HasCheckConstraint("CK_PremiumPlanConfigs_Plan", "\"Plan\" IN ('1-month', '6-month', '1-year')");
+                entity.HasIndex(p => p.Plan)
+                    .IsUnique()
+                    .HasDatabaseName("IX_PremiumPlanConfigs_Plan");
+
+                entity.Property(p => p.PriceVnd).HasPrecision(18, 0);
+                entity.Property(p => p.OriginalPriceVnd).HasPrecision(18, 0);
             });
 
             // CommunityPost configuration
@@ -537,6 +550,46 @@ namespace DAL.Data
                 new Bank { Id = Guid.Parse("44444444-4444-4444-4444-444444444014"), Name = "Ngân hàng TMCP Bưu điện Liên Việt (LPBank)", Code = "LPB", DisplayOrder = 14, IsActive = true, CreatedAt = bankSeedTimestamp },
                 new Bank { Id = Guid.Parse("44444444-4444-4444-4444-444444444015"), Name = "Ngân hàng TMCP Phương Đông (OCB)", Code = "OCB", DisplayOrder = 15, IsActive = true, CreatedAt = bankSeedTimestamp },
                 new Bank { Id = Guid.Parse("44444444-4444-4444-4444-444444444016"), Name = "Khác", Code = null, DisplayOrder = 99, IsActive = true, CreatedAt = bankSeedTimestamp }
+            );
+
+            // Seed data cho PremiumPlanConfig (giống migration AddPremiumPlanConfigs)
+            modelBuilder.Entity<PremiumPlanConfig>().HasData(
+                new PremiumPlanConfig
+                {
+                    Id = Guid.Parse("55555555-5555-5555-5555-555555555001"),
+                    Plan = "1-month",
+                    PriceVnd = 79000m,
+                    OriginalPriceVnd = null,
+                    DiscountPercent = null,
+                    IsActive = true,
+                    CreatedAt = seedTimestamp,
+                    UpdatedAt = seedTimestamp,
+                    LastLoginAt = null
+                },
+                new PremiumPlanConfig
+                {
+                    Id = Guid.Parse("55555555-5555-5555-5555-555555555002"),
+                    Plan = "6-month",
+                    PriceVnd = 389000m,
+                    OriginalPriceVnd = 474000m,
+                    DiscountPercent = 18,
+                    IsActive = true,
+                    CreatedAt = seedTimestamp,
+                    UpdatedAt = seedTimestamp,
+                    LastLoginAt = null
+                },
+                new PremiumPlanConfig
+                {
+                    Id = Guid.Parse("55555555-5555-5555-5555-555555555003"),
+                    Plan = "1-year",
+                    PriceVnd = 710000m,
+                    OriginalPriceVnd = 948000m,
+                    DiscountPercent = 25,
+                    IsActive = true,
+                    CreatedAt = seedTimestamp,
+                    UpdatedAt = seedTimestamp,
+                    LastLoginAt = null
+                }
             );
         }
 
