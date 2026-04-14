@@ -8,6 +8,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace FinmateController.Controllers
 {
@@ -189,28 +190,18 @@ namespace FinmateController.Controllers
             }
         }
 
-        public class SepayIpnPayload
+        private static string? GetJsonString(JsonElement obj, string name)
         {
-            public long Timestamp { get; set; }
-            public string? NotificationType { get; set; }
-            public SepayIpnOrder? Order { get; set; }
-            public SepayIpnTransaction? Transaction { get; set; }
-        }
-
-        public class SepayIpnOrder
-        {
-            public string? OrderInvoiceNumber { get; set; }
-            public string? OrderAmount { get; set; }
-            public string? OrderStatus { get; set; }
-        }
-
-        public class SepayIpnTransaction
-        {
-            public string? TransactionId { get; set; }
-            public string? TransactionStatus { get; set; }
-            public string? TransactionAmount { get; set; }
-            public string? TransactionDate { get; set; }
-            public string? PaymentMethod { get; set; }
+            if (obj.ValueKind != JsonValueKind.Object) return null;
+            if (!obj.TryGetProperty(name, out var prop)) return null;
+            return prop.ValueKind switch
+            {
+                JsonValueKind.String => prop.GetString(),
+                JsonValueKind.Number => prop.GetRawText(),
+                JsonValueKind.True => "true",
+                JsonValueKind.False => "false",
+                _ => prop.GetRawText()
+            };
         }
 
         [HttpPost("ipn")]
@@ -232,23 +223,27 @@ namespace FinmateController.Controllers
                 raw = await new StreamReader(Request.Body).ReadToEndAsync();
                 Request.Body.Position = 0;
 
-                var payload = JsonSerializer.Deserialize<SepayIpnPayload>(raw, new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true,
-                    NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowReadingFromString
-                });
+                using var doc = JsonDocument.Parse(raw);
+                var root = doc.RootElement;
 
-                if (payload?.Order?.OrderInvoiceNumber == null)
-                {
-                    return BadRequest(new { error = "Invalid payload" });
-                }
-
-                if (!string.Equals(payload.NotificationType, "ORDER_PAID", StringComparison.OrdinalIgnoreCase))
+                var notificationType = GetJsonString(root, "notification_type");
+                if (!string.Equals(notificationType, "ORDER_PAID", StringComparison.OrdinalIgnoreCase))
                 {
                     return Ok(new { success = true, ignored = "notification_type" });
                 }
 
-                var invoice = payload.Order.OrderInvoiceNumber.Trim().ToUpperInvariant();
+                if (!root.TryGetProperty("order", out var orderObj) || orderObj.ValueKind != JsonValueKind.Object)
+                {
+                    return Ok(new { success = true, error = "Invalid payload: missing order" });
+                }
+
+                var invoiceRaw = GetJsonString(orderObj, "order_invoice_number");
+                if (string.IsNullOrWhiteSpace(invoiceRaw))
+                {
+                    return Ok(new { success = true, error = "Invalid payload: missing order_invoice_number" });
+                }
+
+                var invoice = invoiceRaw.Trim().ToUpperInvariant();
                 var order = await _db.PremiumOrders.FirstOrDefaultAsync(o => o.PaymentCode == invoice);
                 if (order == null) return Ok(new { success = true, ignored = "order_not_found" });
 
@@ -267,7 +262,8 @@ namespace FinmateController.Controllers
                 }
 
                 // Verify amount
-                if (decimal.TryParse(payload.Order.OrderAmount, NumberStyles.Any, CultureInfo.InvariantCulture, out var paidAmount))
+                var orderAmountRaw = GetJsonString(orderObj, "order_amount");
+                if (decimal.TryParse(orderAmountRaw, NumberStyles.Any, CultureInfo.InvariantCulture, out var paidAmount))
                 {
                     if (paidAmount != order.AmountVnd)
                     {
@@ -281,8 +277,11 @@ namespace FinmateController.Controllers
                 order.Status = "Paid";
                 order.PaidAt = now;
                 order.UpdatedAt = now;
-                order.ReferenceCode = payload.Transaction?.TransactionId;
-                order.LastWebhookContent = payload.Transaction?.TransactionStatus;
+                if (root.TryGetProperty("transaction", out var txObj) && txObj.ValueKind == JsonValueKind.Object)
+                {
+                    order.ReferenceCode = GetJsonString(txObj, "transaction_id");
+                    order.LastWebhookContent = GetJsonString(txObj, "transaction_status");
+                }
 
                 // deactivate existing active subs
                 var activeSubs = await _db.PremiumSubscriptions
@@ -318,7 +317,7 @@ namespace FinmateController.Controllers
                     ExpiresAt = expiresAt,
                     IsActive = true,
                     PaymentMethod = "SEPAY_GATEWAY",
-                    TransactionId = payload.Transaction?.TransactionId,
+                    TransactionId = order.ReferenceCode,
                     CreatedAt = now,
                     UpdatedAt = now,
                 });
