@@ -59,6 +59,7 @@ namespace DAL.Models
         public virtual ICollection<Transaction> Transactions { get; set; } = new List<Transaction>();
         public virtual ICollection<Goal> Goals { get; set; } = new List<Goal>();
         public virtual ICollection<PremiumSubscription> PremiumSubscriptions { get; set; } = new List<PremiumSubscription>();
+        public virtual ICollection<PremiumOrder> PremiumOrders { get; set; } = new List<PremiumOrder>();
         public virtual ICollection<CommunityPost> CommunityPosts { get; set; } = new List<CommunityPost>();
         public virtual ICollection<CommunityPostLike> CommunityPostLikes { get; set; } = new List<CommunityPostLike>();
         public virtual ICollection<CommunityPostBookmark> CommunityPostBookmarks { get; set; } = new List<CommunityPostBookmark>();

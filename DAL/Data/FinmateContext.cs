@@ -41,6 +41,8 @@ namespace DAL.Data
         public DbSet<Bank> Banks { get; set; }
         public DbSet<SavingsBook> SavingsBooks { get; set; }
         public DbSet<PremiumPlanConfig> PremiumPlanConfigs { get; set; }
+        public DbSet<PremiumOrder> PremiumOrders { get; set; }
+        public DbSet<SepayWebhookEvent> SepayWebhookEvents { get; set; }
 
         //Nếu muốn cấu hình chi tiết thêm thì overrive OnModelCreating
         //Nếu đã sử dụng [] trc các attribute thì có thể ko cần method này 
@@ -80,6 +82,11 @@ namespace DAL.Data
                 entity.HasMany(u => u.PremiumSubscriptions)
                     .WithOne(p => p.User)
                     .HasForeignKey(p => p.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasMany(u => u.PremiumOrders)
+                    .WithOne(o => o.User)
+                    .HasForeignKey(o => o.UserId)
                     .OnDelete(DeleteBehavior.Cascade);
 
                 entity.HasMany(u => u.CommunityPosts)
@@ -201,6 +208,39 @@ namespace DAL.Data
 
                 entity.Property(p => p.PriceVnd).HasPrecision(18, 0);
                 entity.Property(p => p.OriginalPriceVnd).HasPrecision(18, 0);
+            });
+
+            // PremiumOrder configuration
+            modelBuilder.Entity<PremiumOrder>(entity =>
+            {
+                entity.HasCheckConstraint("CK_PremiumOrders_Plan",
+                    "\"Plan\" IN ('1-month', '6-month', '1-year')");
+                entity.HasCheckConstraint("CK_PremiumOrders_Status",
+                    "\"Status\" IN ('Pending', 'Paid', 'Expired', 'Cancelled')");
+
+                entity.Property(p => p.AmountVnd).HasPrecision(18, 0);
+
+                entity.HasIndex(p => p.UserId)
+                    .HasDatabaseName("IX_PremiumOrders_UserId");
+
+                entity.HasIndex(p => p.Status)
+                    .HasDatabaseName("IX_PremiumOrders_Status");
+
+                entity.HasIndex(p => p.PaymentCode)
+                    .IsUnique()
+                    .HasDatabaseName("IX_PremiumOrders_PaymentCode");
+            });
+
+            modelBuilder.Entity<SepayWebhookEvent>(entity =>
+            {
+                entity.Property(p => p.TransferAmount).HasPrecision(18, 0);
+
+                entity.HasIndex(p => p.SepayId)
+                    .IsUnique()
+                    .HasDatabaseName("IX_SepayWebhookEvents_SepayId");
+
+                entity.HasIndex(p => p.ReferenceCode)
+                    .HasDatabaseName("IX_SepayWebhookEvents_ReferenceCode");
             });
 
             // CommunityPost configuration
