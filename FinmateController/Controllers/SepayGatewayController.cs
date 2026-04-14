@@ -154,10 +154,10 @@ namespace FinmateController.Controllers
                 var secretKey = RequireEnv("SEPAY_PG_SECRET_KEY");
                 var feBaseUrl = RequireEnv("FINMATE_FE_BASE_URL").TrimEnd('/');
 
-                // Return/callback pages on FE; FE will poll BE for actual status.
-                var successUrl = $"{feBaseUrl}/sepay-return?orderId={orderId}&result=success";
-                var errorUrl = $"{feBaseUrl}/sepay-return?orderId={orderId}&result=error";
-                var cancelUrl = $"{feBaseUrl}/sepay-return?orderId={orderId}&result=cancel";
+                // Return/callback pages on FE (landing). FE will show a thank-you popup and can poll BE if needed.
+                var successUrl = $"{feBaseUrl}/?payment=success&orderId={orderId}";
+                var errorUrl = $"{feBaseUrl}/?payment=error&orderId={orderId}";
+                var cancelUrl = $"{feBaseUrl}/?payment=cancel&orderId={orderId}";
 
                 // IMPORTANT: keep the same field insertion order as SePay docs samples.
                 var fields = new Dictionary<string, string>
