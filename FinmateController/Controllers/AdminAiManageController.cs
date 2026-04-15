@@ -109,80 +109,88 @@ namespace FinmateController.Controllers
                 perPage = perPage < 1 ? 20 : perPage;
                 perPage = Math.Min(perPage, 200);
 
-                // Base users query (so we can show 0 usage too if needed later).
+                // Base users query.
                 var usersQuery = _db.Users.AsNoTracking();
                 if (!string.IsNullOrWhiteSpace(q))
                 {
-                    var qq = q.Trim().ToLowerInvariant();
+                    var qq = q.Trim();
+                    var pattern = $"%{qq}%";
                     usersQuery = usersQuery.Where(u =>
-                        (u.Email != null && u.Email.ToLower().Contains(qq)) ||
-                        (u.FullName != null && u.FullName.ToLower().Contains(qq)));
+                        (u.Email != null && EF.Functions.ILike(u.Email, pattern)) ||
+                        (u.FullName != null && EF.Functions.ILike(u.FullName, pattern)));
                 }
 
-                // Usage for the period
-                var usageQuery = _db.UserAiMonthlyUsages.AsNoTracking()
-                    .Where(x => x.PeriodKey == period);
-
-                // Precompute totals for summary
-                // SUM() in SQL returns NULL on empty set, guard to avoid 500.
-                var totalChat = await usageQuery.Select(x => (int?)x.ChatCalls).SumAsync() ?? 0;
-                var totalPlan = await usageQuery.Select(x => (int?)x.PlanCalls).SumAsync() ?? 0;
-                var usersWithUsage = await usageQuery.CountAsync(x => x.ChatCalls > 0 || x.PlanCalls > 0);
-
-                // Join users with usage (LEFT JOIN)
-                var joined =
-                    from u in usersQuery
-                    join us in usageQuery on u.Id equals us.UserId into gj
-                    from us in gj.DefaultIfEmpty()
-                    select new
+                var users = await usersQuery
+                    .Select(u => new
                     {
                         u.Id,
                         u.Email,
                         u.FullName,
                         u.IsPremium,
                         Role = (int)u.Role,
-                        ChatCalls = us != null ? us.ChatCalls : 0,
-                        PlanCalls = us != null ? us.PlanCalls : 0,
-                    };
+                    })
+                    .ToListAsync();
 
-                // Goals count per user (grouped)
-                var goalsByUser = _db.Goals.AsNoTracking()
+                var goalsMap = await _db.Goals.AsNoTracking()
                     .GroupBy(g => g.UserId)
-                    .Select(g => new { UserId = g.Key, Count = g.Count() });
+                    .Select(g => new { UserId = g.Key, Count = g.Count() })
+                    .ToDictionaryAsync(x => x.UserId, x => x.Count);
 
-                var finalQuery =
-                    from x in joined
-                    join g in goalsByUser on x.Id equals g.UserId into gg
-                    from g in gg.DefaultIfEmpty()
-                    select new AiManageUserRowDto
+                var usageMap = new Dictionary<Guid, (int ChatCalls, int PlanCalls)>();
+                int totalChat = 0;
+                int totalPlan = 0;
+                int usersWithUsage = 0;
+                try
+                {
+                    var usageRows = await _db.UserAiMonthlyUsages.AsNoTracking()
+                        .Where(x => x.PeriodKey == period)
+                        .Select(x => new { x.UserId, x.ChatCalls, x.PlanCalls })
+                        .ToListAsync();
+
+                    usageMap = usageRows.ToDictionary(x => x.UserId, x => (x.ChatCalls, x.PlanCalls));
+                    totalChat = usageRows.Sum(x => x.ChatCalls);
+                    totalPlan = usageRows.Sum(x => x.PlanCalls);
+                    usersWithUsage = usageRows.Count(x => x.ChatCalls > 0 || x.PlanCalls > 0);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "AI usage table/query failed in admin ai-manage. Fallback to zero usage.");
+                }
+
+                var rows = users.Select(u =>
+                {
+                    usageMap.TryGetValue(u.Id, out var usage);
+                    goalsMap.TryGetValue(u.Id, out var goalsCount);
+                    return new AiManageUserRowDto
                     {
-                        UserId = x.Id,
-                        Email = x.Email ?? "",
-                        FullName = x.FullName ?? "",
-                        IsPremium = x.IsPremium,
-                        Role = x.Role,
-                        ChatCalls = x.ChatCalls,
-                        PlanCalls = x.PlanCalls,
-                        GoalsCount = g != null ? g.Count : 0,
+                        UserId = u.Id,
+                        Email = u.Email ?? "",
+                        FullName = u.FullName ?? "",
+                        IsPremium = u.IsPremium,
+                        Role = u.Role,
+                        ChatCalls = usage.ChatCalls,
+                        PlanCalls = usage.PlanCalls,
+                        GoalsCount = goalsCount,
                     };
+                });
 
                 // Sorting
                 var sortKey = (sort ?? "chat").Trim().ToLowerInvariant();
                 var desc = !string.Equals((dir ?? "desc").Trim(), "asc", StringComparison.OrdinalIgnoreCase);
 
-                finalQuery = sortKey switch
+                rows = sortKey switch
                 {
-                    "plan" => desc ? finalQuery.OrderByDescending(x => x.PlanCalls).ThenByDescending(x => x.ChatCalls) : finalQuery.OrderBy(x => x.PlanCalls).ThenBy(x => x.ChatCalls),
-                    "goals" => desc ? finalQuery.OrderByDescending(x => x.GoalsCount).ThenByDescending(x => x.ChatCalls) : finalQuery.OrderBy(x => x.GoalsCount).ThenBy(x => x.ChatCalls),
-                    "email" => desc ? finalQuery.OrderByDescending(x => x.Email) : finalQuery.OrderBy(x => x.Email),
-                    _ => desc ? finalQuery.OrderByDescending(x => x.ChatCalls).ThenByDescending(x => x.PlanCalls) : finalQuery.OrderBy(x => x.ChatCalls).ThenBy(x => x.PlanCalls),
+                    "plan" => desc ? rows.OrderByDescending(x => x.PlanCalls).ThenByDescending(x => x.ChatCalls) : rows.OrderBy(x => x.PlanCalls).ThenBy(x => x.ChatCalls),
+                    "goals" => desc ? rows.OrderByDescending(x => x.GoalsCount).ThenByDescending(x => x.ChatCalls) : rows.OrderBy(x => x.GoalsCount).ThenBy(x => x.ChatCalls),
+                    "email" => desc ? rows.OrderByDescending(x => x.Email) : rows.OrderBy(x => x.Email),
+                    _ => desc ? rows.OrderByDescending(x => x.ChatCalls).ThenByDescending(x => x.PlanCalls) : rows.OrderBy(x => x.ChatCalls).ThenBy(x => x.PlanCalls),
                 };
 
-                var total = await finalQuery.CountAsync();
-                var items = await finalQuery
+                var total = rows.Count();
+                var items = rows
                     .Skip((page - 1) * perPage)
                     .Take(perPage)
-                    .ToListAsync();
+                    .ToList();
 
                 return Ok(new PagedResponse<AiManageUserRowDto>
                 {

@@ -54,6 +54,9 @@ namespace FinmateController.Controllers
         {
             public PremiumOrderStatsDto PremiumOrders { get; set; } = new();
             public decimal PremiumRevenueVndThisMonth { get; set; }
+            public decimal TotalSystemIncomeVnd { get; set; }
+            public int CustomersWithGoals { get; set; }
+            public int PremiumExpiringIn5Days { get; set; }
             public UserStatsDto Users { get; set; } = new();
             public AiUsageAdminDto AiUsage { get; set; } = new();
             public int PremiumPlanConfigsActive { get; set; }
@@ -108,17 +111,41 @@ namespace FinmateController.Controllers
                     .Where(o => o.Status == "Paid" && o.PaidAt != null && o.PaidAt >= monthStart && o.PaidAt < monthEnd)
                     .SumAsync(o => o.AmountVnd);
 
+                var totalIncomeVnd = await _db.Transactions.AsNoTracking()
+                    .Join(_db.TransactionTypes.AsNoTracking(),
+                        t => t.TransactionTypeId,
+                        tt => tt.Id,
+                        (t, tt) => new { t, tt })
+                    .Where(x => x.tt.IsIncome && !x.t.ExcludeFromReport)
+                    .Select(x => (decimal?)x.t.Amount)
+                    .SumAsync() ?? 0m;
+
+                var customersWithGoals = await _db.Goals.AsNoTracking()
+                    .Select(g => g.UserId)
+                    .Distinct()
+                    .CountAsync();
+
+                var now = DateTime.UtcNow;
+                var fiveDaysLater = now.AddDays(5);
+                var premiumExpiringIn5Days = await _db.PremiumSubscriptions.AsNoTracking()
+                    .Where(s => s.IsActive && s.ExpiresAt > now && s.ExpiresAt <= fiveDaysLater)
+                    .Select(s => s.UserId)
+                    .Distinct()
+                    .CountAsync();
+
                 var usersTotal = await _db.Users.AsNoTracking().CountAsync();
                 var usersPremium = await _db.Users.AsNoTracking().CountAsync(u => u.IsPremium);
                 var staffOrAdmin = await _db.Users.AsNoTracking().CountAsync(u => (int)u.Role >= (int)Role.Staff);
 
                 var aiPlanSum = await _db.UserAiMonthlyUsages.AsNoTracking()
                     .Where(x => x.PeriodKey == periodKey)
-                    .SumAsync(x => x.PlanCalls);
+                    .Select(x => (int?)x.PlanCalls)
+                    .SumAsync() ?? 0;
 
                 var aiChatSum = await _db.UserAiMonthlyUsages.AsNoTracking()
                     .Where(x => x.PeriodKey == periodKey)
-                    .SumAsync(x => x.ChatCalls);
+                    .Select(x => (int?)x.ChatCalls)
+                    .SumAsync() ?? 0;
 
                 var aiUsers = await _db.UserAiMonthlyUsages.AsNoTracking()
                     .CountAsync(x => x.PeriodKey == periodKey && (x.PlanCalls > 0 || x.ChatCalls > 0));
@@ -136,6 +163,9 @@ namespace FinmateController.Controllers
                         Total = ordersTotal,
                     },
                     PremiumRevenueVndThisMonth = revenueMonth,
+                    TotalSystemIncomeVnd = totalIncomeVnd,
+                    CustomersWithGoals = customersWithGoals,
+                    PremiumExpiringIn5Days = premiumExpiringIn5Days,
                     Users = new UserStatsDto
                     {
                         Total = usersTotal,
