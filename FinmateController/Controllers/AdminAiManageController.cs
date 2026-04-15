@@ -124,8 +124,9 @@ namespace FinmateController.Controllers
                     .Where(x => x.PeriodKey == period);
 
                 // Precompute totals for summary
-                var totalChat = await usageQuery.SumAsync(x => x.ChatCalls);
-                var totalPlan = await usageQuery.SumAsync(x => x.PlanCalls);
+                // SUM() in SQL returns NULL on empty set, guard to avoid 500.
+                var totalChat = await usageQuery.Select(x => (int?)x.ChatCalls).SumAsync() ?? 0;
+                var totalPlan = await usageQuery.Select(x => (int?)x.PlanCalls).SumAsync() ?? 0;
                 var usersWithUsage = await usageQuery.CountAsync(x => x.ChatCalls > 0 || x.PlanCalls > 0);
 
                 // Join users with usage (LEFT JOIN)
