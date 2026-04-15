@@ -62,7 +62,8 @@ namespace BLL.Services
         {
             var transactions = await _transactionRepository.GetByUserIdWithFilterAsync(
                 userId, transactionTypeId, categoryId, moneySourceId, startDate, endDate, page, pageSize);
-            var totalCount = await _transactionRepository.CountByUserIdAsync(userId);
+            var totalCount = await _transactionRepository.CountByUserIdWithFilterAsync(
+                userId, transactionTypeId, categoryId, moneySourceId, startDate, endDate);
 
             return new TransactionListResponseDto
             {

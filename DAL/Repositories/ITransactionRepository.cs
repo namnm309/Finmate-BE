@@ -20,6 +20,13 @@ namespace DAL.Repositories
         Task<Transaction> UpdateAsync(Transaction transaction);
         Task<bool> DeleteAsync(Guid id);
         Task<int> CountByUserIdAsync(Guid userId);
+        Task<int> CountByUserIdWithFilterAsync(
+            Guid userId,
+            Guid? transactionTypeId = null,
+            Guid? categoryId = null,
+            Guid? moneySourceId = null,
+            DateTime? startDate = null,
+            DateTime? endDate = null);
         Task<int> SaveChangesAsync();
     }
 }
