@@ -87,6 +87,14 @@ namespace FinmateController.Controllers
             public int UsersWithUsage { get; set; }
         }
 
+        public class UserMetricsPointDto
+        {
+            public string Date { get; set; } = string.Empty; // yyyy-MM-dd (UTC)
+            public int ActiveUsers { get; set; }
+            public int NewUsers { get; set; }
+            public int PremiumBuyers { get; set; }
+        }
+
         [HttpGet]
         [AllowAnonymous]
         public async Task<IActionResult> Get(CancellationToken cancellationToken = default)
@@ -188,6 +196,71 @@ namespace FinmateController.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error building admin dashboard summary");
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+        /// <summary>
+        /// Chuỗi dữ liệu user metrics theo ngày (UTC) cho dashboard thống kê admin.
+        /// </summary>
+        [HttpGet("user-metrics")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetUserMetrics(
+            [FromQuery] DateTime? startDate,
+            [FromQuery] DateTime? endDate,
+            CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var (_, err) = await RequireStaffOrAdminAsync();
+                if (err != null) return err;
+
+                var utcNow = DateTime.UtcNow.Date;
+                var start = (startDate?.Date ?? utcNow.AddDays(-29));
+                var end = (endDate?.Date ?? utcNow);
+                if (end < start) (start, end) = (end, start);
+
+                var daySpan = (end - start).TotalDays;
+                if (daySpan > 366)
+                    return BadRequest("Khoảng thời gian tối đa là 366 ngày.");
+
+                var endExclusive = end.AddDays(1);
+
+                var newUsersMap = await _db.Users.AsNoTracking()
+                    .Where(u => u.CreatedAt >= start && u.CreatedAt < endExclusive)
+                    .GroupBy(u => u.CreatedAt.Date)
+                    .Select(g => new { Date = g.Key, Count = g.Count() })
+                    .ToDictionaryAsync(x => x.Date, x => x.Count, cancellationToken);
+
+                var activeUsersMap = await _db.Users.AsNoTracking()
+                    .Where(u => u.LastLoginAt != null && u.LastLoginAt >= start && u.LastLoginAt < endExclusive)
+                    .GroupBy(u => u.LastLoginAt!.Value.Date)
+                    .Select(g => new { Date = g.Key, Count = g.Select(x => x.Id).Distinct().Count() })
+                    .ToDictionaryAsync(x => x.Date, x => x.Count, cancellationToken);
+
+                var premiumBuyersMap = await _db.PremiumOrders.AsNoTracking()
+                    .Where(o => o.Status == "Paid" && o.PaidAt != null && o.PaidAt >= start && o.PaidAt < endExclusive)
+                    .GroupBy(o => o.PaidAt!.Value.Date)
+                    .Select(g => new { Date = g.Key, Count = g.Select(x => x.UserId).Distinct().Count() })
+                    .ToDictionaryAsync(x => x.Date, x => x.Count, cancellationToken);
+
+                var result = new List<UserMetricsPointDto>();
+                for (var d = start; d <= end; d = d.AddDays(1))
+                {
+                    result.Add(new UserMetricsPointDto
+                    {
+                        Date = d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                        ActiveUsers = activeUsersMap.TryGetValue(d, out var active) ? active : 0,
+                        NewUsers = newUsersMap.TryGetValue(d, out var created) ? created : 0,
+                        PremiumBuyers = premiumBuyersMap.TryGetValue(d, out var premium) ? premium : 0,
+                    });
+                }
+
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error building admin user metrics");
                 return StatusCode(500, "Internal server error");
             }
         }
