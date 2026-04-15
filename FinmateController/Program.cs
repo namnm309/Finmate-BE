@@ -162,6 +162,7 @@ namespace FinmateController
             builder.Services.AddScoped<BankService>();
             builder.Services.AddScoped<SavingsBookService>();
             builder.Services.AddScoped<CommunityService>();
+            builder.Services.AddScoped<AiUsageService>();
 
             // CORS mở cho toàn bộ origin/port (tùy chỉnh sau qua cấu hình nếu cần khóa lại)
             builder.Services.AddCors(options =>

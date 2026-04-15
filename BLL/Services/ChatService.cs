@@ -249,8 +249,14 @@ namespace BLL.Services
                 var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
                 _logger.LogError("{Provider} API error {StatusCode} Model={Model}: {Body}", cfg.DisplayName, response.StatusCode, modelId, errorBody);
 
-                // Gợi ý rõ ràng khi model không tồn tại hoặc không hỗ trợ vision
                 var status = (int)response.StatusCode;
+                if (status == 429)
+                {
+                    throw new AiRateLimitedException(
+                        "AI đang bị giới hạn tần suất (model free trên OpenRouter/Google). Hãy thử lại sau vài phút, đổi OpenRouter__ModelId (vd. openrouter/free), hoặc thêm Google API key trong OpenRouter → Settings → Integrations (BYOK) để có quota riêng.");
+                }
+
+                // Gợi ý rõ ràng khi model không tồn tại hoặc không hỗ trợ vision
                 if (hasImage && (status == 400 || status == 404 || status == 422))
                 {
                     var hint = cfg.Kind == AiProviderKind.OpenRouter

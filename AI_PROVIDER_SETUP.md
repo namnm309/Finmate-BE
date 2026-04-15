@@ -49,4 +49,8 @@ Tài liệu API: [OpenRouter](https://openrouter.ai/docs).
 
 `GET /api/chat/diagnostic` — trường `provider` phản ánh provider đang dùng; trạng thái OK khi key và model hợp lệ.
 
+## HTTP 429 / rate limit (model free)
+
+Nếu log OpenRouter có `429` hoặc chữ **rate-limited upstream** (Google AI Studio): đó là **hết quota tạm thời** cho model free dùng chung, không phải bug backend. Cách xử lý: chờ vài phút; đổi **`OpenRouter__ModelId`** (vd. `openrouter/free`); nạp credit + dùng model trả phí; hoặc [BYOK Google trong OpenRouter](https://openrouter.ai/settings/integrations). API chat trả **HTTP 429** với `code: ai_rate_limited` để app hiển thị “thử lại sau”.
+
 **Lưu ý:** Danh sách model vision (`GetVisionModels`) chỉ gọi MegaLLM khi provider là MegaLLM; với OpenRouter endpoint trả rỗng (có thể mở rộng sau nếu cần).

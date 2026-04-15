@@ -1,5 +1,6 @@
 using BLL.DTOs.Request;
 using BLL.Services;
+using BLL.Services.Ai;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -14,16 +15,27 @@ namespace FinmateController.Controllers
     public class ChatController : FinmateControllerBase
     {
         private readonly ChatService _chatService;
+        private readonly AiUsageService _aiUsageService;
         private readonly ILogger<ChatController> _logger;
 
         public ChatController(
             UserService userService,
             ChatService chatService,
+            AiUsageService aiUsageService,
             ILogger<ChatController> logger)
             : base(userService)
         {
             _chatService = chatService;
+            _aiUsageService = aiUsageService;
             _logger = logger;
+        }
+
+        private static AiFeatureKind ParseAiFeature(ChatRequestDto request)
+        {
+            var raw = request.AiFeature?.Trim().ToLowerInvariant();
+            if (raw == "plan" || raw == "planner" || raw == "financial_plan" || raw == "budget_plan")
+                return AiFeatureKind.Plan;
+            return AiFeatureKind.Chat;
         }
 
         /// <summary>
@@ -64,7 +76,29 @@ namespace FinmateController.Controllers
                     return BadRequest(new { message = "Request không được để trống" });
                 }
 
+                Guid? dbUserId = null;
+                var feature = ParseAiFeature(request);
+                if (User?.Identity?.IsAuthenticated == true)
+                {
+                    dbUserId = await GetCurrentUserIdAsync();
+                    if (dbUserId.HasValue)
+                        await _aiUsageService.EnsureCanCallAsync(dbUserId.Value, feature, cancellationToken);
+                }
+
                 var response = await _chatService.SendChatAsync(request, cancellationToken);
+
+                if (dbUserId.HasValue)
+                {
+                    try
+                    {
+                        await _aiUsageService.IncrementAsync(dbUserId.Value, feature, cancellationToken);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "AI usage increment failed after successful chat");
+                    }
+                }
+
                 return Ok(response);
             }
             catch (ArgumentException ex)
@@ -75,6 +109,16 @@ namespace FinmateController.Controllers
             {
                 _logger.LogError(ex, "AI thiếu cấu hình trên server (ApiKey / ModelId)");
                 return StatusCode(503, new { message = "AI chưa được cấu hình. Liên hệ quản trị viên." });
+            }
+            catch (AiQuotaExceededException ex)
+            {
+                _logger.LogWarning(ex, "AI quota exceeded for user");
+                return StatusCode(429, new { message = ex.Message, code = "ai_quota_exceeded" });
+            }
+            catch (AiRateLimitedException ex)
+            {
+                _logger.LogWarning(ex, "AI rate limited (429 upstream)");
+                return StatusCode(429, new { message = ex.Message, code = "ai_rate_limited" });
             }
             catch (HttpRequestException ex)
             {

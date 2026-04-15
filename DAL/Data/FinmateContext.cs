@@ -44,6 +44,7 @@ namespace DAL.Data
         public DbSet<PremiumOrder> PremiumOrders { get; set; }
         public DbSet<SepayWebhookEvent> SepayWebhookEvents { get; set; }
         public DbSet<AppDownloadConfig> AppDownloadConfigs { get; set; }
+        public DbSet<UserAiMonthlyUsage> UserAiMonthlyUsages { get; set; }
 
         //Nếu muốn cấu hình chi tiết thêm thì overrive OnModelCreating
         //Nếu đã sử dụng [] trc các attribute thì có thể ko cần method này 
@@ -88,6 +89,11 @@ namespace DAL.Data
                 entity.HasMany(u => u.PremiumOrders)
                     .WithOne(o => o.User)
                     .HasForeignKey(o => o.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasMany(u => u.AiMonthlyUsages)
+                    .WithOne(a => a.User)
+                    .HasForeignKey(a => a.UserId)
                     .OnDelete(DeleteBehavior.Cascade);
 
                 entity.HasMany(u => u.CommunityPosts)
@@ -248,6 +254,15 @@ namespace DAL.Data
             {
                 entity.Property(p => p.IosUrl).HasMaxLength(2048);
                 entity.Property(p => p.AndroidUrl).HasMaxLength(2048);
+            });
+
+            modelBuilder.Entity<UserAiMonthlyUsage>(entity =>
+            {
+                entity.HasIndex(x => new { x.UserId, x.PeriodKey })
+                    .IsUnique()
+                    .HasDatabaseName("IX_UserAiMonthlyUsage_UserId_PeriodKey");
+
+                entity.Property(x => x.PeriodKey).HasMaxLength(7);
             });
 
             // CommunityPost configuration

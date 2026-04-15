@@ -36,5 +36,10 @@ namespace BLL.DTOs.Request
         /// Model tùy chọn để override khi test hoặc ép dùng model cụ thể.
         /// </summary>
         public string? Model { get; set; }
+
+        /// <summary>
+        /// Với request có Clerk JWT: "chat" (mặc định) hoặc "plan" (lập kế hoạch). Khách không đăng nhập không áp quota theo user.
+        /// </summary>
+        public string? AiFeature { get; set; }
     }
 }
