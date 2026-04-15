@@ -48,27 +48,5 @@ namespace FinmateController.Controllers
                 return StatusCode(500, new { error = "Internal server error" });
             }
         }
-
-        /// <summary>
-        /// Chi tieu 7 ngay: tuan nay vs tuan truoc (UTC).
-        /// </summary>
-        [HttpGet("weekly-expenses")]
-        public async Task<IActionResult> GetWeeklyExpenses()
-        {
-            try
-            {
-                var userId = await GetCurrentUserIdAsync();
-                if (!userId.HasValue)
-                    return Unauthorized(new { error = "Invalid user" });
-
-                var rows = await _reportService.GetWeeklyExpenseComparisonAsync(userId.Value);
-                return Ok(rows);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting weekly expense report");
-                return StatusCode(500, new { error = "Internal server error" });
-            }
-        }
     }
 }

@@ -124,35 +124,6 @@ namespace DAL.Repositories
                 .CountAsync(t => t.UserId == userId);
         }
 
-        public async Task<int> CountByUserIdWithFilterAsync(
-            Guid userId,
-            Guid? transactionTypeId = null,
-            Guid? categoryId = null,
-            Guid? moneySourceId = null,
-            DateTime? startDate = null,
-            DateTime? endDate = null)
-        {
-            var query = _context.Transactions.AsNoTracking()
-                .Where(t => t.UserId == userId);
-
-            if (transactionTypeId.HasValue)
-                query = query.Where(t => t.TransactionTypeId == transactionTypeId.Value);
-
-            if (categoryId.HasValue)
-                query = query.Where(t => t.CategoryId == categoryId.Value);
-
-            if (moneySourceId.HasValue)
-                query = query.Where(t => t.MoneySourceId == moneySourceId.Value);
-
-            if (startDate.HasValue)
-                query = query.Where(t => t.TransactionDate >= startDate.Value);
-
-            if (endDate.HasValue)
-                query = query.Where(t => t.TransactionDate <= endDate.Value);
-
-            return await query.CountAsync();
-        }
-
         public async Task<int> SaveChangesAsync()
         {
             return await _context.SaveChangesAsync();

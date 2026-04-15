@@ -3,7 +3,6 @@ using DAL.Data;
 using DAL.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using System.Globalization;
 
 namespace BLL.Services
 {
@@ -104,54 +103,6 @@ namespace BLL.Services
                 _logger.LogError(ex, "Error getting overview report for user {UserId}", userId);
                 throw;
             }
-        }
-
-        /// <summary>
-        /// Chi tieu theo tung ngay: tuan hien tai vs tuan truoc (UTC, Chu nhat = ngay dau tuan).
-        /// Gia tri la tong Amount (don vi tien trong DB, thuong VND).
-        /// </summary>
-        public async Task<List<WeeklyExpenseBarDto>> GetWeeklyExpenseComparisonAsync(Guid userId)
-        {
-            var todayUtc = DateTime.UtcNow.Date;
-            var daysFromSunday = (int)todayUtc.DayOfWeek;
-            var thisWeekStart = todayUtc.AddDays(-daysFromSunday);
-            var lastWeekStart = thisWeekStart.AddDays(-7);
-            var rangeStart = lastWeekStart;
-            var rangeEndExclusive = thisWeekStart.AddDays(7);
-            var en = CultureInfo.GetCultureInfo("en-US");
-
-            var expenseRows = await _context.Transactions.AsNoTracking()
-                .Where(t => t.UserId == userId && !t.ExcludeFromReport
-                    && t.TransactionDate >= rangeStart && t.TransactionDate < rangeEndExclusive)
-                .Join(_context.TransactionTypes.AsNoTracking(),
-                    t => t.TransactionTypeId,
-                    tt => tt.Id,
-                    (t, tt) => new { t.TransactionDate, t.Amount, tt.IsIncome })
-                .Where(x => !x.IsIncome)
-                .Select(x => new { x.TransactionDate, x.Amount })
-                .ToListAsync();
-
-            var list = new List<WeeklyExpenseBarDto>();
-            for (var i = 0; i < 7; i++)
-            {
-                var dThis = thisWeekStart.AddDays(i);
-                var dLast = lastWeekStart.AddDays(i);
-                var thisSum = expenseRows
-                    .Where(t => t.TransactionDate >= dThis && t.TransactionDate < dThis.AddDays(1))
-                    .Sum(t => t.Amount);
-                var lastSum = expenseRows
-                    .Where(t => t.TransactionDate >= dLast && t.TransactionDate < dLast.AddDays(1))
-                    .Sum(t => t.Amount);
-                var label = $"{dThis.Day} {dThis.ToString("ddd", en)}";
-                list.Add(new WeeklyExpenseBarDto
-                {
-                    Day = label,
-                    ThisWeek = (double)thisSum,
-                    LastWeek = (double)lastSum,
-                });
-            }
-
-            return list;
         }
     }
 }
