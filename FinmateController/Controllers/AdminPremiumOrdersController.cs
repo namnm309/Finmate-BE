@@ -4,6 +4,7 @@ using DAL.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
 
 namespace FinmateController.Controllers
 {
@@ -77,6 +78,32 @@ namespace FinmateController.Controllers
             public int Page { get; set; }
             public int PerPage { get; set; }
             public int Total { get; set; }
+            public PremiumOrdersCharts Charts { get; set; } = new();
+        }
+
+        public class PremiumOrdersCharts
+        {
+            public List<OrdersByDayPoint> OrdersByDay { get; set; } = new();
+            public List<RevenueByDayPoint> RevenueByDay { get; set; } = new();
+            public List<PlanBreakdownPoint> PlanBreakdown { get; set; } = new();
+        }
+
+        public class OrdersByDayPoint
+        {
+            public string Date { get; set; } = string.Empty; // yyyy-MM-dd (UTC)
+            public int Count { get; set; }
+        }
+
+        public class RevenueByDayPoint
+        {
+            public string Date { get; set; } = string.Empty; // yyyy-MM-dd (UTC)
+            public decimal AmountVnd { get; set; }
+        }
+
+        public class PlanBreakdownPoint
+        {
+            public string Plan { get; set; } = string.Empty;
+            public int Count { get; set; }
         }
 
         [HttpGet]
@@ -143,6 +170,56 @@ namespace FinmateController.Controllers
                         (x.o.ReferenceCode != null && x.o.ReferenceCode.ToLower().Contains(qq)));
                 }
 
+                var utcToday = DateTime.UtcNow.Date;
+                var chartStartDate = utcToday.AddDays(-6);
+                var chartEndExclusive = utcToday.AddDays(1);
+
+                var chartBaseQuery = query.Where(x =>
+                    x.o.CreatedAt >= chartStartDate &&
+                    x.o.CreatedAt < chartEndExclusive);
+
+                var byDayRaw = await chartBaseQuery
+                    .GroupBy(x => x.o.CreatedAt.Date)
+                    .Select(g => new
+                    {
+                        Date = g.Key,
+                        Count = g.Count(),
+                        AmountVnd = g.Sum(x => x.o.AmountVnd),
+                    })
+                    .ToListAsync();
+
+                var planBreakdownRaw = await chartBaseQuery
+                    .GroupBy(x => x.o.Plan)
+                    .Select(g => new PlanBreakdownPoint
+                    {
+                        Plan = g.Key,
+                        Count = g.Count(),
+                    })
+                    .OrderByDescending(x => x.Count)
+                    .ToListAsync();
+
+                var byDayMap = byDayRaw.ToDictionary(x => x.Date, x => x, EqualityComparer<DateTime>.Default);
+                var ordersByDay = new List<OrdersByDayPoint>(capacity: 7);
+                var revenueByDay = new List<RevenueByDayPoint>(capacity: 7);
+                for (var i = 0; i < 7; i++)
+                {
+                    var d = chartStartDate.AddDays(i);
+                    var key = d.Date;
+                    byDayMap.TryGetValue(key, out var v);
+
+                    var dateStr = d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+                    ordersByDay.Add(new OrdersByDayPoint
+                    {
+                        Date = dateStr,
+                        Count = v?.Count ?? 0,
+                    });
+                    revenueByDay.Add(new RevenueByDayPoint
+                    {
+                        Date = dateStr,
+                        AmountVnd = v?.AmountVnd ?? 0m,
+                    });
+                }
+
                 var total = await query.CountAsync();
 
                 var items = await query
@@ -172,6 +249,12 @@ namespace FinmateController.Controllers
                     Page = page,
                     PerPage = perPage,
                     Total = total,
+                    Charts = new PremiumOrdersCharts
+                    {
+                        OrdersByDay = ordersByDay,
+                        RevenueByDay = revenueByDay,
+                        PlanBreakdown = planBreakdownRaw,
+                    },
                 });
             }
             catch (Exception ex)
