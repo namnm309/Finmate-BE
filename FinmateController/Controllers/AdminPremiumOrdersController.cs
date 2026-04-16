@@ -83,6 +83,9 @@ namespace FinmateController.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> List(
             [FromQuery] string? status,
+            [FromQuery] string? plan,
+            [FromQuery] decimal? minAmountVnd,
+            [FromQuery] decimal? maxAmountVnd,
             [FromQuery] string? q,
             [FromQuery] int page = 1,
             [FromQuery] int perPage = 20)
@@ -106,6 +109,29 @@ namespace FinmateController.Controllers
                 {
                     var s = status.Trim();
                     query = query.Where(x => x.o.Status == s);
+                }
+
+                if (!string.IsNullOrWhiteSpace(plan))
+                {
+                    var p = plan.Trim();
+                    query = query.Where(x => x.o.Plan == p);
+                }
+
+                if (minAmountVnd.HasValue && maxAmountVnd.HasValue && minAmountVnd.Value > maxAmountVnd.Value)
+                {
+                    (minAmountVnd, maxAmountVnd) = (maxAmountVnd, minAmountVnd);
+                }
+
+                if (minAmountVnd.HasValue)
+                {
+                    var min = minAmountVnd.Value;
+                    query = query.Where(x => x.o.AmountVnd >= min);
+                }
+
+                if (maxAmountVnd.HasValue)
+                {
+                    var max = maxAmountVnd.Value;
+                    query = query.Where(x => x.o.AmountVnd <= max);
                 }
 
                 if (!string.IsNullOrWhiteSpace(q))
