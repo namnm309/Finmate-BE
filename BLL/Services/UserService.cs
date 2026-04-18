@@ -201,6 +201,7 @@ namespace BLL.Services
                 AvatarUrl = clerkUser.ImageUrl ?? "",
                 PasswordHash = "", // Clerk users không cần password
                 IsActive = true,
+                Role = Role.User,
                 CreatedAt = clerkUser.GetCreatedAtDateTime() ?? DateTime.UtcNow,
                 UpdatedAt = clerkUser.GetUpdatedAtDateTime() ?? DateTime.UtcNow,
                 LastLoginAt = clerkUser.GetLastSignInAtDateTime()
@@ -266,13 +267,19 @@ namespace BLL.Services
         {
             try
             {
-                // 1) First user becomes Admin (để vào dashboard ngay)
-                var hasAnyUser = await _userRepository.AnyAsync();
-                if (!hasAnyUser)
+                // Default: keep Role.User (0). Only promote if explicitly configured.
+                // Optional: promote very first user to Admin (dev bootstrapping).
+                var firstUserAdminEnabled =
+                    string.Equals(_configuration["Bootstrap:FirstUserAdmin"], "true", StringComparison.OrdinalIgnoreCase);
+                if (firstUserAdminEnabled)
                 {
-                    user.Role = Role.Admin;
-                    _logger.LogWarning("[Auth] BootstrapRole: First user promoted to Admin. Email={Email}", user.Email);
-                    return;
+                    var hasAnyUser = await _userRepository.AnyAsync();
+                    if (!hasAnyUser)
+                    {
+                        user.Role = Role.Admin;
+                        _logger.LogWarning("[Auth] BootstrapRole: First user promoted to Admin. Email={Email}", user.Email);
+                        return;
+                    }
                 }
 
                 // 2) Optional allowlist by email (comma-separated)
@@ -426,6 +433,7 @@ namespace BLL.Services
                 AvatarUrl = webhookData.ImageUrl ?? "",
                 PasswordHash = "", // Clerk users không cần password hash
                 IsActive = true,
+                Role = Role.User,
                 CreatedAt = webhookData.GetCreatedAtDateTime() ?? DateTime.UtcNow,
                 UpdatedAt = webhookData.GetUpdatedAtDateTime() ?? DateTime.UtcNow,
                 LastLoginAt = webhookData.GetLastSignInAtDateTime()
