@@ -120,7 +120,8 @@ namespace FinmateController.Controllers
                     .Select(o => (decimal?)o.AmountVnd)
                     .SumAsync(cancellationToken) ?? 0m;
 
-                var totalIncomeVnd = await _db.Transactions.AsNoTracking()
+                // Thu nhập từ ví người dùng (bảng Transactions, loại IsIncome).
+                var totalIncomeFromTransactionsVnd = await _db.Transactions.AsNoTracking()
                     .Join(_db.TransactionTypes.AsNoTracking(),
                         t => t.TransactionTypeId,
                         tt => tt.Id,
@@ -128,6 +129,14 @@ namespace FinmateController.Controllers
                     .Where(x => x.tt.IsIncome && !x.t.ExcludeFromReport)
                     .Select(x => (decimal?)x.t.Amount)
                     .SumAsync(cancellationToken) ?? 0m;
+
+                // Đơn Premium không tạo Transaction; cộng riêng để dashboard phản ánh doanh thu thực tế.
+                var totalPremiumPaidAllTimeVnd = await _db.PremiumOrders.AsNoTracking()
+                    .Where(o => o.Status == "Paid")
+                    .Select(o => (decimal?)o.AmountVnd)
+                    .SumAsync(cancellationToken) ?? 0m;
+
+                var totalSystemIncomeVnd = totalIncomeFromTransactionsVnd + totalPremiumPaidAllTimeVnd;
 
                 var customersWithGoals = await _db.Goals.AsNoTracking()
                     .Select(g => g.UserId)
@@ -171,7 +180,7 @@ namespace FinmateController.Controllers
                         Total = ordersTotal,
                     },
                     PremiumRevenueVndThisMonth = revenueMonth,
-                    TotalSystemIncomeVnd = totalIncomeVnd,
+                    TotalSystemIncomeVnd = totalSystemIncomeVnd,
                     CustomersWithGoals = customersWithGoals,
                     PremiumExpiringIn5Days = premiumExpiringIn5Days,
                     Users = new UserStatsDto
